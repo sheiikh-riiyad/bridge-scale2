@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Container,
   Typography,
@@ -56,13 +56,20 @@ import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import EventIcon from '@mui/icons-material/Event';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import { styled } from '@mui/material/styles';
+import errorSound from '../audio/error.mp3';
+import warningSound from '../audio/warning.mp3';
+import successSound from '../audio/success.mp3';
+import infoSound from '../audio/info.mp3';
+import deleteSound from '../audio/delete.mp3';
 
 // Custom styled components with compact styling
 const ScaleCard = styled(Card)(({ theme }) => ({
   background: 'linear-gradient(135deg, #1a237e 0%, #283593 50%, #3949ab 100%)',
   color: 'white',
   borderRadius: '16px',
-  boxShadow: '0 8px 20px rgba(0, 0, 0, 0.25)',
+  boxShadow: '0 20px 60px rgba(15, 23, 42, 0.35)',
+  border: '1px solid rgba(255, 255, 255, 0.2)',
+  backdropFilter: 'blur(6px)',
   position: 'relative',
   overflow: 'visible',
   '&::before': {
@@ -164,17 +171,19 @@ const ResetButton = styled(Button)(({ theme }) => ({
 }));
 
 const HeaderStatCard = styled(Paper)(({ theme }) => ({
-  padding: theme.spacing(0.75),
+  padding: theme.spacing(1.75),
   borderRadius: '8px',
-  background: 'linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%)',
-  boxShadow: '0 3px 8px rgba(0, 0, 0, 0.08)',
+  background: 'linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(248,249,250,0.9) 100%)',
+  border: '1px solid rgba(255,255,255,0.5)',
+  boxShadow: '0 12px 30px rgba(15, 23, 42, 0.12)',
+  backdropFilter: 'blur(8px)',
   transition: 'transform 0.2s ease-in-out',
   height: '100%',
   display: 'flex',
   alignItems: 'center',
   '&:hover': {
-    transform: 'translateY(-2px)',
-    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.12)',
+    transform: 'translateY(-4px)',
+    boxShadow: '0 18px 40px rgba(15, 23, 42, 0.18)',
   }
 }));
 
@@ -206,6 +215,42 @@ const WeightScaleButton = styled(IconButton)(({ theme }) => ({
   }
 }));
 
+const Reveal = ({ children, delay = 0 }) => {
+  const ref = useRef(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.2 }
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <Box
+      ref={ref}
+      sx={{
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'translateY(0) scale(1)' : 'translateY(16px) scale(0.98)',
+        filter: visible ? 'blur(0px)' : 'blur(2px)',
+        transition: `opacity 650ms cubic-bezier(0.22, 1, 0.36, 1) ${delay}ms, transform 650ms cubic-bezier(0.22, 1, 0.36, 1) ${delay}ms, filter 650ms ease ${delay}ms`,
+        willChange: 'opacity, transform, filter'
+      }}
+    >
+      {children}
+    </Box>
+  );
+};
+
 function Home() {
   const [formData, setFormData] = useState({
     driverName: '',
@@ -214,6 +259,7 @@ function Home() {
     buyerName: '',
     productName: '',
     specification: '',
+    fee: '',
     firstWeight: '',
     secondWeight: '',
     netWeight: '',
@@ -226,12 +272,15 @@ function Home() {
   const [entries, setEntries] = useState([]);
   const [editingIndex, setEditingIndex] = useState(null);
   const [openDialog, setOpenDialog] = useState(false);
+  const [deleteIndex, setDeleteIndex] = useState(null);
   const [snackbar, setSnackbar] = useState({ 
     open: false, 
     message: '', 
     severity: 'success' 
   });
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [liveTime, setLiveTime] = useState(new Date());
+  const audioMapRef = useRef(null);
 
   // Sample data for demonstration
   useEffect(() => {
@@ -288,6 +337,43 @@ function Home() {
     setEntries(sampleEntries);
   }, []);
 
+  useEffect(() => {
+    audioMapRef.current = {
+      error: new Audio(errorSound),
+      warning: new Audio(warningSound),
+      success: new Audio(successSound),
+      info: new Audio(infoSound),
+      delete: new Audio(deleteSound)
+    };
+
+    Object.values(audioMapRef.current).forEach((audio) => {
+      audio.preload = 'auto';
+    });
+
+    return () => {
+      if (!audioMapRef.current) return;
+      Object.values(audioMapRef.current).forEach((audio) => {
+        audio.pause();
+      });
+      audioMapRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      setLiveTime(new Date());
+    }, 1000);
+
+    return () => clearInterval(intervalId);
+  }, []);
+
+  const formattedLiveTime = liveTime.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true
+  });
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
@@ -329,27 +415,37 @@ function Home() {
     
     // Determine which field to fill based on which is empty
     if (!formData.firstWeight) {
+      const nextNetWeight = formData.secondWeight
+        ? Math.abs(randomWeight - parseFloat(formData.secondWeight)).toFixed(2)
+        : '';
       setFormData(prev => ({
         ...prev,
         firstWeight: randomWeight.toString(),
-        firstWeightDateTime: dateTimeString
+        firstWeightDateTime: dateTimeString,
+        netWeight: nextNetWeight
       }));
       setSnackbar({
         open: true,
         message: `First weight recorded: ${randomWeight} kg`,
         severity: 'success'
       });
+      playAlertSound('success');
     } else if (!formData.secondWeight) {
+      const nextNetWeight = formData.firstWeight
+        ? Math.abs(parseFloat(formData.firstWeight) - randomWeight).toFixed(2)
+        : '';
       setFormData(prev => ({
         ...prev,
         secondWeight: randomWeight.toString(),
-        secondWeightDateTime: dateTimeString
+        secondWeightDateTime: dateTimeString,
+        netWeight: nextNetWeight
       }));
       setSnackbar({
         open: true,
         message: `Second weight recorded: ${randomWeight} kg`,
         severity: 'success'
       });
+      playAlertSound('success');
     }
   };
 
@@ -361,6 +457,7 @@ function Home() {
       buyerName: '',
       productName: '',
       specification: '',
+      fee: '',
       firstWeight: '',
       secondWeight: '',
       netWeight: '',
@@ -374,6 +471,7 @@ function Home() {
       message: 'All form fields have been reset!',
       severity: 'info'
     });
+    playAlertSound('info');
   };
 
   const handleRemoveFirstWeight = () => {
@@ -388,6 +486,7 @@ function Home() {
       message: 'First weight removed!',
       severity: 'warning'
     });
+    playAlertSound('warning');
   };
 
   const handleRemoveSecondWeight = () => {
@@ -402,26 +501,39 @@ function Home() {
       message: 'Second weight removed!',
       severity: 'warning'
     });
+    playAlertSound('warning');
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     
-    if (!formData.driverName || !formData.truckNumber) {
+    if (!formData.truckNumber || !formData.productName) {
       setSnackbar({
         open: true,
-        message: 'Driver name and truck number are required!',
+        message: 'Truck number and product name are required!',
         severity: 'error'
       });
+      playAlertSound('error');
       return;
     }
 
-    if (!formData.firstWeight || !formData.secondWeight) {
+    if (!formData.fee) {
       setSnackbar({
         open: true,
-        message: 'Both weight measurements are required!',
+        message: 'Fee is required!',
+        severity: 'warning'
+      });
+      playAlertSound('warning');
+      return;
+    }
+
+    if (!formData.firstWeight && !formData.secondWeight) {
+      setSnackbar({
+        open: true,
+        message: 'At least one weight measurement is required!',
         severity: 'error'
       });
+      playAlertSound('error');
       return;
     }
 
@@ -448,6 +560,7 @@ function Home() {
         message: 'Weight ticket updated successfully!',
         severity: 'success'
       });
+      playAlertSound('success');
       setEditingIndex(null);
     } else {
       setEntries(prev => [...prev, { ...updatedFormData, id: Date.now() }]);
@@ -456,6 +569,7 @@ function Home() {
         message: 'New weight ticket created successfully!',
         severity: 'success'
       });
+      playAlertSound('success');
     }
 
     setFormData({
@@ -465,6 +579,7 @@ function Home() {
       buyerName: '',
       productName: '',
       specification: '',
+      fee: '',
       firstWeight: '',
       secondWeight: '',
       netWeight: '',
@@ -482,18 +597,28 @@ function Home() {
 
   const handleDelete = (index) => {
     setOpenDialog(true);
-    setEditingIndex(index);
+    setDeleteIndex(index);
   };
 
   const confirmDelete = () => {
-    const updatedEntries = entries.filter((_, i) => i !== editingIndex);
+    if (deleteIndex === null) {
+      setOpenDialog(false);
+      return;
+    }
+
+    const updatedEntries = entries.filter((_, i) => i !== deleteIndex);
     setEntries(updatedEntries);
     setOpenDialog(false);
+    if (editingIndex === deleteIndex) {
+      setEditingIndex(null);
+    }
+    setDeleteIndex(null);
     setSnackbar({
       open: true,
       message: 'Weight ticket deleted successfully!',
       severity: 'warning'
     });
+    playAlertSound('delete');
   };
 
   const calculateStats = () => {
@@ -502,7 +627,7 @@ function Home() {
     const todayEntries = entries.filter(entry => entry.date === new Date().toISOString().split('T')[0]);
     
     return {
-      totalWeight: (totalWeight / 1000).toFixed(1) + 'T',
+      totalWeight: totalWeight.toFixed(0) + ' kg',
       avgWeight: avgWeight.toFixed(0),
       totalEntries: entries.length,
       todayEntries: todayEntries.length
@@ -520,6 +645,24 @@ function Home() {
 
   // Check if both weights have values
   const isReadWeightDisabled = formData.firstWeight && formData.secondWeight;
+
+  const playAlertSound = (type = 'error') => {
+    const audioMap = audioMapRef.current;
+    if (!audioMap) return;
+    const audio = audioMap[type] || audioMap.error;
+    if (!audio) return;
+    audio.currentTime = 0;
+    audio.play().catch(() => {});
+  };
+
+  const averageWeight = (() => {
+    const net = parseFloat(formData.netWeight);
+    const spec = parseFloat(formData.specification);
+    if (!Number.isFinite(net) || !Number.isFinite(spec) || spec === 0) {
+      return '';
+    }
+    return (net / spec).toFixed(2);
+  })();
 
   // Format datetime for display
   const formatDateTime = (dateTimeString) => {
@@ -673,11 +816,13 @@ function Home() {
     <Container 
       maxWidth="xl" 
       sx={{ 
-        mt: 0.5, 
-        mb: 0.5, 
+        mt: 0, 
+        mb: 0, 
         px: { xs: 1, sm: 1.5 },
-        height: 'calc(80vh - 16px)',
-        overflow: 'hidden'
+        // height: '100vh',
+        // maxHeight: '100vh',
+        overflow: 'hidden',
+        background: 'radial-gradient(1200px 600px at 10% 10%, rgba(59, 130, 246, 0.12), transparent 60%), radial-gradient(900px 500px at 90% 15%, rgba(14, 165, 233, 0.15), transparent 60%), linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%)'
       }}
     >
       <Box sx={{ 
@@ -687,123 +832,173 @@ function Home() {
         overflow: 'hidden'
       }}>
         <Fade in={true} timeout={900}>
-          <Box sx={{ height: '100%' }}>
+          <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
             {/* Compact Header Section */}
-            <Box sx={{ mb: 1.5 }}>
+            <Box sx={{ mb: { xs: 1, md: 1.5 }, flexShrink: 0 }}>
               <Grid container spacing={1} alignItems="center">
-                <Grid item xs={12} md={6}>
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <ScaleIcon sx={{ 
-                      fontSize: 28, 
-                      mr: 1, 
-                      color: '#2196f3'
-                    }} />
-                    <Box>
-                      <Typography variant="h5" gutterBottom sx={{ 
-                        fontWeight: 'bold',
-                        fontSize: '1.4rem',
-                        lineHeight: 1.2,
-                        background: 'linear-gradient(45deg, #2196f3, #3f51b5)',
-                        WebkitBackgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent'
-                      }}>
-                        Bridge Scale Management
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ ml: 4, fontSize: '0.75rem' }}>
-                        Professional weight measurement system
-                      </Typography>
+                <Grid item xs={12} md={4}>
+                  <Reveal delay={0}>
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                      <ScaleIcon sx={{ 
+                        fontSize: 30, 
+                        mr: 1.25, 
+                        color: '#1e88e5',
+                        filter: 'drop-shadow(0 6px 10px rgba(30, 136, 229, 0.35))'
+                      }} />
+                      <Box>
+                        <Typography variant="h5" gutterBottom sx={{ 
+                          fontWeight: 800,
+                          fontSize: '1.5rem',
+                          lineHeight: 1.15,
+                          background: 'linear-gradient(90deg, #0ea5e9 0%, #2563eb 60%, #1e3a8a 100%)',
+                          WebkitBackgroundClip: 'text',
+                          WebkitTextFillColor: 'transparent'
+                        }}>
+                          Bridge Scale Management
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ ml: 4, fontSize: '0.8rem', letterSpacing: 0.2 }}>
+                          Professional weight measurement system
+                        </Typography>
+                      </Box>
                     </Box>
-                  </Box>
+                  </Reveal>
                 </Grid>
                 
                 {/* Compact Statistics Cards */}
-                <Grid item xs={12} md={6} >
-                  <Grid container spacing={0.75}>
-                    {[
-                      { 
-                        label: 'Total', 
-                        value: stats.totalEntries, 
-                        icon: <DashboardIcon sx={{ fontSize: 14, color: '#2196f3' }} />, 
-                        color: '#2196f3'
-                      },
-                      { 
-                        label: 'Weight', 
-                        value: stats.totalWeight, 
-                        icon: <ScaleIcon sx={{ fontSize: 14, color: '#4caf50' }} />, 
-                        color: '#4caf50'
-                      },
-                      { 
-                        label: 'Avg', 
-                        value: stats.avgWeight, 
-                        icon: <TrendingUpIcon sx={{ fontSize: 14, color: '#ff9800' }} />, 
-                        color: '#ff9800'
-                      },
-                      { 
-                        label: "Today", 
-                        value: stats.todayEntries, 
-                        icon: <CalendarTodayIcon sx={{ fontSize: 14, color: '#9c27b0' }} />, 
-                        color: '#9c27b0'
-                      }
-                    ].map((stat, index) => (
-                      <Grid item xs={3} key={index}>
-                        <HeaderStatCard>
-                          <Box sx={{ 
-                            display: 'flex', 
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            textAlign: 'center',
-                            width: '100%',
-                            p: 0.25
-                          }}>
-                            <Box sx={{ 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              justifyContent: 'center',
-                              mb: 0.25
-                            }}>
+                <Grid item xs={12} md={8} >
+                  <Box sx={{ 
+                    display: { xs: 'block', md: 'flex' }, 
+                    alignItems: 'center', 
+                    gap: 1 
+                  }}>
+                    <Grid container spacing={2} sx={{ flex: 1 }}>
+                      {[
+                        { 
+                          label: 'Total', 
+                          value: stats.totalEntries, 
+                          icon: <DashboardIcon sx={{ fontSize: 14, color: '#2196f3' }} />, 
+                          color: '#2196f3',
+                          
+
+                        },
+                        { 
+                          label: 'Weight', 
+                          value: stats.totalWeight, 
+                          icon: <ScaleIcon sx={{ fontSize: 14, color: '#4caf50' }} />, 
+                          color: '#4caf50'
+                        },
+                        { 
+                          label: 'Avg', 
+                          value: stats.avgWeight, 
+                          icon: <TrendingUpIcon sx={{ fontSize: 14, color: '#ff9800' }} />, 
+                          color: '#ff9800'
+                        },
+                        { 
+                          label: "Today", 
+                          value: stats.todayEntries, 
+                          icon: <CalendarTodayIcon sx={{ fontSize: 14, color: '#9c27b0' }} />, 
+                          color: '#9c27b0'
+                        }
+                      ].map((stat, index) => (
+                        <Grid item xs={3} key={index}>
+                          <Reveal delay={index * 60}>
+                            <HeaderStatCard>
                               <Box sx={{ 
-                                width: 22,
-                                height: 22,
-                                borderRadius: '5px',
-                                backgroundColor: stat.color + '15',
-                                display: 'flex',
+                                display: 'flex', 
+                                flexDirection: 'column',
                                 alignItems: 'center',
-                                justifyContent: 'center',
-                                mr: 0.25
+                                textAlign: 'center',
+                                width: '100%',
+                                p: 0.25,
+                                
                               }}>
-                                {stat.icon}
+                                <Box sx={{ 
+                                  display: 'flex', 
+                                  alignItems: 'center', 
+                                  justifyContent: 'center',
+                                  mb: 0.25
+                                }}>
+                                  <Box sx={{ 
+                                    width: 28,
+                                    height: 28,
+                                    borderRadius: '5px',
+                                    backgroundColor: stat.color + '15',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    mr: 0.5,
+                                    
+                                  }}>
+                                    {React.cloneElement(stat.icon, { sx: { fontSize: 18, color: stat.color } })}
+                                  </Box>
+                                  <Typography variant="caption" sx={{ 
+                                    color: '#666',
+                                    fontWeight: 500,
+                                    fontSize: '0.75rem',
+                                    whiteSpace: 'nowrap'
+                                  }}>
+                                    {stat.label}
+                                  </Typography>
+                                </Box>
+                                <Typography variant="h6" sx={{ 
+                                  fontWeight: 'bold', 
+                                  color: stat.color,
+                                  fontSize: '1.2rem',
+                                  lineHeight: 1.2
+                                }}>
+                                  {stat.value}
+                                </Typography>
                               </Box>
-                              <Typography variant="caption" sx={{ 
-                                color: '#666',
-                                fontWeight: 500,
-                                fontSize: '0.6rem',
-                                whiteSpace: 'nowrap'
-                              }}>
-                                {stat.label}
-                              </Typography>
-                            </Box>
-                            <Typography variant="h6" sx={{ 
-                              fontWeight: 'bold', 
-                              color: stat.color,
-                              fontSize: '0.95rem',
-                              lineHeight: 1.2
-                            }}>
-                              {stat.value}
-                            </Typography>
-                          </Box>
-                        </HeaderStatCard>
-                      </Grid>
-                    ))}
-                  </Grid>
+                            </HeaderStatCard>
+                          </Reveal>
+                        </Grid>
+                      ))}
+                    </Grid>
+                    <Reveal delay={240}>
+                      <Box sx={{ 
+                        textAlign: { xs: 'left', md: 'right' },
+                        px: 1.5,
+                        py: 0.75,
+                        borderRadius: '10px',
+                        background: 'linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(243,246,251,0.9) 100%)',
+                        border: '1px solid rgba(255,255,255,0.6)',
+                        boxShadow: '0 12px 30px rgba(30, 64, 175, 0.12)',
+                        backdropFilter: 'blur(8px)',
+                        minWidth: { xs: 'auto', md: 140 }
+                      }}>
+                        <Typography sx={{ 
+                          fontSize: '0.9rem', 
+                          color: '#475569', 
+                          fontWeight: 700,
+                          letterSpacing: 0.6
+                        }}>
+                          LIVE TIME
+                        </Typography>
+                        <Typography sx={{ 
+                          fontSize: '1.6rem', 
+                          fontWeight: 800, 
+                          color: '#0f172a',
+                          lineHeight: 1.05
+                        }}>
+                          {formattedLiveTime}
+                        </Typography>
+                      </Box>
+                    </Reveal>
+                  </Box>
                 </Grid>
               </Grid>
             </Box>
 
-            <Grid container spacing={1.5} sx={{ height: 'calc(100% - 70px)' }} mt={5}>
+            <Grid 
+              container 
+              spacing={1.5} 
+              sx={{ flex: 1, minHeight: 0, overflow: 'hidden' }} 
+              mt={{ xs: 1, md: 2.5 }}
+            >
               {/* Main Content Card */}
               <Grid item xs={12} sx={{ height: '100%' }}>
                 <ScaleCard sx={{ height: '100%' }}>
-                  <CardContent sx={{ p: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                  <CardContent sx={{ p: 2, height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                       <Avatar sx={{ 
                         bgcolor: 'white', 
@@ -827,22 +1022,26 @@ function Home() {
                           color: '#bbdefb', 
                           fontSize: '0.75rem'
                         }}>
-                          Fill required details for accurate measurement
+                          {/* Fill required details for accurate measurement */}
                         </Typography>
                       </Box>
                     </Box>
 
-                    <Box component="form" onSubmit={handleSubmit} sx={{ flex: 1, overflow: 'auto' }}>
-                      <Grid container spacing={1.5}>
+                    <Box component="form" onSubmit={handleSubmit} sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+                  <Grid container spacing={1}>
                         {/* Driver & Truck Info - Compact */}
                         <Grid item xs={12} md={6}>
+                          <Reveal delay={0}>
                           <Paper sx={{ 
                             p: 1.5, 
-                            borderRadius: '8px', 
-                            background: 'rgba(255,255,255,0.1)'
+                            borderRadius: '10px', 
+                            background: 'rgba(255,255,255,0.08)',
+                            border: '1px solid rgba(255,255,255,0.2)',
+                            boxShadow: '0 10px 25px rgba(15, 23, 42, 0.18)',
+                            backdropFilter: 'blur(8px)'
                           }}>
                             <Typography variant="subtitle2" gutterBottom sx={{ 
-                              color: '#bbdefb', 
+                              color: '#000000', 
                               display: 'flex', 
                               alignItems: 'center',
                               fontSize: '0.85rem',
@@ -898,18 +1097,23 @@ function Home() {
                                 />
                               </Grid>
                             </Grid>
-                          </Paper>
+                            </Paper>
+                          </Reveal>
                         </Grid>
 
                         {/* Transaction Parties - Compact */}
                         <Grid item xs={12} md={6}>
+                          <Reveal delay={80}>
                           <Paper sx={{ 
                             p: 1.5, 
-                            borderRadius: '8px', 
-                            background: 'rgba(255,255,255,0.1)'
+                            borderRadius: '10px', 
+                            background: 'rgba(255,255,255,0.08)',
+                            border: '1px solid rgba(255,255,255,0.2)',
+                            boxShadow: '0 10px 25px rgba(15, 23, 42, 0.18)',
+                            backdropFilter: 'blur(8px)'
                           }}>
                             <Typography variant="subtitle2" gutterBottom sx={{ 
-                              color: '#bbdefb', 
+                              color: '#000000', 
                               display: 'flex', 
                               alignItems: 'center',
                               fontSize: '0.85rem',
@@ -963,18 +1167,23 @@ function Home() {
                                 />
                               </Grid>
                             </Grid>
-                          </Paper>
+                            </Paper>
+                          </Reveal>
                         </Grid>
 
                         {/* Product Details - Compact */}
                         <Grid item xs={12} md={6}>
+                          <Reveal delay={160}>
                           <Paper sx={{ 
                             p: 1.5, 
-                            borderRadius: '8px', 
-                            background: 'rgba(255,255,255,0.1)'
+                            borderRadius: '10px', 
+                            background: 'rgba(255,255,255,0.08)',
+                            border: '1px solid rgba(255,255,255,0.2)',
+                            boxShadow: '0 10px 25px rgba(15, 23, 42, 0.18)',
+                            backdropFilter: 'blur(8px)'
                           }}>
                             <Typography variant="subtitle2" gutterBottom sx={{ 
-                              color: '#bbdefb', 
+                              color: '#010202', 
                               display: 'flex', 
                               alignItems: 'center',
                               fontSize: '0.85rem',
@@ -986,10 +1195,11 @@ function Home() {
                               <Grid item xs={12}>
                                 <DataField
                                   fullWidth
-                                  label="Product Name"
+                                  label="Product Name *"
                                   name="productName"
                                   value={formData.productName}
                                   onChange={handleChange}
+                                  required
                                   size="small"
                                   InputProps={{
                                     startAdornment: (
@@ -1013,11 +1223,30 @@ function Home() {
                                   value={formData.specification}
                                   onChange={handleChange}
                                   size="small"
-                                  multiline
+                                  
                                   rows={1}
                                   InputProps={{
                                     startAdornment: (
-                                      <InputAdornment position="start" sx={{ alignItems: 'flex-start', mt: 0.5 }}>
+                                      <InputAdornment position="start" >
+                                        <DescriptionIcon fontSize="small" />
+                                      </InputAdornment>
+                                    ),
+                                  }}
+                                
+                                />
+                              </Grid>
+                              <Grid item xs={12}>
+                                <DataField
+                                  fullWidth
+                                  label="Fee"
+                                  name="fee"
+                                  type="number"
+                                  value={formData.fee || ''}
+                                  onChange={handleChange}
+                                  size="small"
+                                  InputProps={{
+                                    startAdornment: (
+                                      <InputAdornment position="start">
                                         <DescriptionIcon fontSize="small" />
                                       </InputAdornment>
                                     ),
@@ -1031,17 +1260,22 @@ function Home() {
                               </Grid>
                             </Grid>
                           </Paper>
+                          </Reveal>
                         </Grid>
 
                         {/* Weight Measurement - Compact */}
                         <Grid item xs={12} md={6}>
+                          <Reveal delay={240}>
                           <Paper sx={{ 
                             p: 1.5, 
-                            borderRadius: '8px', 
-                            background: 'rgba(255,255,255,0.1)'
+                            borderRadius: '10px', 
+                            background: 'rgba(255,255,255,0.08)',
+                            border: '1px solid rgba(255,255,255,0.2)',
+                            boxShadow: '0 10px 25px rgba(15, 23, 42, 0.18)',
+                            backdropFilter: 'blur(8px)'
                           }}>
                             <Typography variant="subtitle2" gutterBottom sx={{ 
-                              color: '#bbdefb', 
+                              color: '#020303', 
                               display: 'flex', 
                               alignItems: 'center',
                               fontSize: '0.85rem',
@@ -1059,6 +1293,7 @@ function Home() {
                                   type="number"
                                   value={formData.firstWeight}
                                   onChange={handleChange}
+                                  onWheel={(e) => e.target.blur()}
                                   size="small"
                                   InputProps={{
                                     endAdornment: <InputAdornment position="end" sx={{ fontSize: '0.75rem' }}>kg</InputAdornment>,
@@ -1075,6 +1310,7 @@ function Home() {
                                   type="number"
                                   value={formData.secondWeight}
                                   onChange={handleChange}
+                                  onWheel={(e) => e.target.blur()}
                                   size="small"
                                   InputProps={{
                                     endAdornment: <InputAdornment position="end" sx={{ fontSize: '0.75rem' }}>kg</InputAdornment>,
@@ -1083,13 +1319,14 @@ function Home() {
                               </Grid>
 
                               {/* Net Weight */}
-                              <Grid item xs={12}>
+                              <Grid item xs={6}>
                                 <DataField
                                   fullWidth
                                   label="Net Weight"
                                   name="netWeight"
                                   type="number"
                                   value={formData.netWeight}
+                                  onWheel={(e) => e.target.blur()}
                                   size="small"
                                   InputProps={{
                                     readOnly: true,
@@ -1098,6 +1335,28 @@ function Home() {
                                       backgroundColor: 'rgba(255,255,255,0.9)',
                                       fontWeight: 'bold',
                                       color: '#2196f3'
+                                    }
+                                  }}
+                                />
+                              </Grid>
+
+                              {/* Average Weight */}
+                              <Grid item xs={6}>
+                                <DataField
+                                  fullWidth
+                                  label="Average Weight"
+                                  name="averageWeight"
+                                  type="number"
+                                  value={averageWeight}
+                                  onWheel={(e) => e.target.blur()}
+                                  size="small"
+                                  InputProps={{
+                                    readOnly: true,
+                                    endAdornment: <InputAdornment position="end" sx={{ fontSize: '0.75rem' }}>kg</InputAdornment>,
+                                    sx: { 
+                                      backgroundColor: 'rgba(255,255,255,0.9)',
+                                      fontWeight: 'bold',
+                                      color: '#4caf50'
                                     }
                                   }}
                                 />
@@ -1175,13 +1434,14 @@ function Home() {
                             }}>
                               {/* Remove buttons */}
                               <Box sx={{ display: 'flex', gap: 0.75 }}>
-                                {formData.firstWeight && (
-                                  <Tooltip title="Remove First Weight">
+                                <Tooltip title={formData.firstWeight ? "Remove First Weight" : "No First Weight"}>
+                                  <span>
                                     <Button
                                       variant="contained"
                                       onClick={handleRemoveFirstWeight}
                                       startIcon={<RemoveIcon />}
                                       size="small"
+                                      disabled={!formData.firstWeight}
                                       sx={{
                                         background: 'linear-gradient(135deg, #ff5252 0%, #ff4081 100%)',
                                         color: 'white',
@@ -1197,20 +1457,26 @@ function Home() {
                                           background: 'linear-gradient(135deg, #d32f2f 0%, #c2185b 100%)',
                                           boxShadow: '0 2px 8px rgba(255, 82, 82, 0.4)',
                                         },
+                                        '&.Mui-disabled': {
+                                          background: '#e0e0e0',
+                                          color: '#9e9e9e',
+                                          boxShadow: 'none',
+                                        }
                                       }}
                                     >
                                       First
                                     </Button>
-                                  </Tooltip>
-                                )}
+                                  </span>
+                                </Tooltip>
                                 
-                                {formData.secondWeight && (
-                                  <Tooltip title="Remove Second Weight">
+                                <Tooltip title={formData.secondWeight ? "Remove Second Weight" : "No Second Weight"}>
+                                  <span>
                                     <Button
                                       variant="contained"
                                       onClick={handleRemoveSecondWeight}
                                       startIcon={<RemoveIcon />}
                                       size="small"
+                                      disabled={!formData.secondWeight}
                                       sx={{
                                         background: 'linear-gradient(135deg, #ff9800 0%, #ff5722 100%)',
                                         color: 'white',
@@ -1226,12 +1492,17 @@ function Home() {
                                           background: 'linear-gradient(135deg, #f57c00 0%, #e64a19 100%)',
                                           boxShadow: '0 2px 8px rgba(255, 152, 0, 0.4)',
                                         },
+                                        '&.Mui-disabled': {
+                                          background: '#e0e0e0',
+                                          color: '#9e9e9e',
+                                          boxShadow: 'none',
+                                        }
                                       }}
                                     >
                                       Second
                                     </Button>
-                                  </Tooltip>
-                                )}
+                                  </span>
+                                </Tooltip>
                               </Box>
 
                               {/* Compact Progress Bar */}
@@ -1249,9 +1520,12 @@ function Home() {
                                   }}
                                 />
                               </Box>
-                            </Box>
-                          </Paper>
+                              </Box>
+                            </Paper>
+                          </Reveal>
                         </Grid>
+                        
+                        <br/>
 
                         {/* Submit Section - Compact Buttons */}
                         <Grid item xs={12}>
@@ -1406,7 +1680,10 @@ function Home() {
         {/* Delete Confirmation Dialog */}
         <Dialog 
           open={openDialog} 
-          onClose={() => setOpenDialog(false)}
+          onClose={() => {
+            setOpenDialog(false);
+            setDeleteIndex(null);
+          }}
           PaperProps={{ sx: { borderRadius: '12px', maxWidth: 400 } }}
         >
           <DialogTitle sx={{ fontWeight: 'bold', color: '#d32f2f', p: 2, fontSize: '1rem' }}>
@@ -1421,26 +1698,29 @@ function Home() {
                 Are you sure you want to delete this weight ticket? This action cannot be undone.
               </Typography>
             </Box>
-            {editingIndex !== null && entries[editingIndex] && (
+            {deleteIndex !== null && entries[deleteIndex] && (
               <Paper sx={{ p: 1.5, bgcolor: '#f5f5f5', borderRadius: '6px', mt: 1.5 }}>
                 <Typography variant="body2" fontWeight="medium" sx={{ fontSize: '0.9rem' }}>
-                  {entries[editingIndex].truckNumber} - {entries[editingIndex].driverName}
+                  {entries[deleteIndex].truckNumber} - {entries[deleteIndex].driverName}
                 </Typography>
                 <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-                  Net Weight: {entries[editingIndex].netWeight} kg
+                  Net Weight: {entries[deleteIndex].netWeight} kg
                 </Typography>
                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, fontSize: '0.7rem' }}>
-                  First Weight: {formatDateTime(entries[editingIndex].firstWeightDateTime)}
+                  First Weight: {formatDateTime(entries[deleteIndex].firstWeightDateTime)}
                 </Typography>
                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.7rem' }}>
-                  Second Weight: {formatDateTime(entries[editingIndex].secondWeightDateTime)}
+                  Second Weight: {formatDateTime(entries[deleteIndex].secondWeightDateTime)}
                 </Typography>
               </Paper>
             )}
           </DialogContent>
           <DialogActions sx={{ p: 2 }}>
             <Button 
-              onClick={() => setOpenDialog(false)}
+              onClick={() => {
+                setOpenDialog(false);
+                setDeleteIndex(null);
+              }}
               sx={{ borderRadius: '6px', fontSize: '0.875rem' }}
             >
               Cancel
