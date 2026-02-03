@@ -673,7 +673,7 @@ function Home() {
 
   // Slide panel content
   const slidePanel = (
-    <Box sx={{ width: 320, height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
       <Box sx={{ 
         p: 2, 
         background: 'linear-gradient(135deg, #ff9800 0%, #ff5722 100%)',
@@ -717,7 +717,11 @@ function Home() {
               <TableHead>
                 <TableRow>
                   <TableCell sx={{ fontWeight: 'bold', fontSize: '0.75rem', p: 1 }}>Truck</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.75rem', p: 1 }} align="right">Net Weight</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.75rem', p: 1 }}>Buyer</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.75rem', p: 1 }}>Seller</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.75rem', p: 1 }}>Product</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.75rem', p: 1 }} align="right">First Wt</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.75rem', p: 1 }} align="right">Second Wt</TableCell>
                   <TableCell sx={{ fontWeight: 'bold', fontSize: '0.75rem', p: 1 }} align="center">Actions</TableCell>
                 </TableRow>
               </TableHead>
@@ -742,13 +746,41 @@ function Home() {
                         </Typography>
                       </Box>
                     </TableCell>
+                    <TableCell sx={{ p: 1 }}>
+                      <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
+                        {entry.buyerName || '—'}
+                      </Typography>
+                    </TableCell>
+                    <TableCell sx={{ p: 1 }}>
+                      <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
+                        {entry.sellerName || '—'}
+                      </Typography>
+                    </TableCell>
+                    <TableCell sx={{ p: 1 }}>
+                      <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
+                        {entry.productName || '—'}
+                      </Typography>
+                    </TableCell>
                     <TableCell align="right" sx={{ p: 1 }}>
                       <Chip
-                        label={`${entry.netWeight || '0.00'} kg`}
+                        label={entry.firstWeight ? `${entry.firstWeight} kg` : '—'}
                         size="small"
                         sx={{
-                          backgroundColor: parseFloat(entry.netWeight) > 20000 ? '#e8f5e9' : '#fff3e0',
-                          color: parseFloat(entry.netWeight) > 20000 ? '#2e7d32' : '#f57c00',
+                          backgroundColor: entry.firstWeight ? '#e3f2fd' : '#f5f5f5',
+                          color: entry.firstWeight ? '#1565c0' : '#9e9e9e',
+                          fontWeight: 'bold',
+                          fontSize: '0.7rem',
+                          height: 22
+                        }}
+                      />
+                    </TableCell>
+                    <TableCell align="right" sx={{ p: 1 }}>
+                      <Chip
+                        label={entry.secondWeight ? `${entry.secondWeight} kg` : '—'}
+                        size="small"
+                        sx={{
+                          backgroundColor: entry.secondWeight ? '#fff3e0' : '#f5f5f5',
+                          color: entry.secondWeight ? '#ef6c00' : '#9e9e9e',
                           fontWeight: 'bold',
                           fontSize: '0.7rem',
                           height: 22
@@ -1659,18 +1691,19 @@ function Home() {
           </Badge>
         </WeightScaleButton>
 
-        {/* Compact Slide-out Drawer */}
+        {/* Recent Tickets Slide-out Modal */}
         <Drawer
           anchor="right"
           open={drawerOpen}
           onClose={toggleDrawer(false)}
+          ModalProps={{ keepMounted: true }}
           PaperProps={{
             sx: {
-              width: 300,
-              maxWidth: '85vw',
-              boxShadow: '-8px 0 20px rgba(0, 0, 0, 0.15)',
-              borderRadius: '12px 0 0 12px',
-              overflow: 'hidden'
+              width: { xs: '95vw', sm: '90vw', md: '50vw' },
+              height: { xs: '90vh', md: '100vh' },
+              borderRadius: { xs: '16px', md: '16px 0 0 16px' },
+              overflow: 'hidden',
+              boxShadow: '0 20px 60px rgba(15, 23, 42, 0.35)'
             }
           }}
         >
