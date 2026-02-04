@@ -16,6 +16,8 @@ import {
   TableHead,
   TableRow,
   Alert,
+  Menu,
+  MenuItem,
   IconButton,
   Dialog,
   DialogTitle,
@@ -33,6 +35,7 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
+import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import ScaleIcon from '@mui/icons-material/Scale';
@@ -291,6 +294,16 @@ function Home() {
     secondWeightDateTime: ''
   });
 
+  const [truckOptions, setTruckOptions] = useState([]);
+  const [driverOptions, setDriverOptions] = useState([]);
+  const [partyOptions, setPartyOptions] = useState([]);
+  const [productOptions, setProductOptions] = useState([]);
+  const [truckMenuAnchor, setTruckMenuAnchor] = useState(null);
+  const [driverMenuAnchor, setDriverMenuAnchor] = useState(null);
+  const [sellerMenuAnchor, setSellerMenuAnchor] = useState(null);
+  const [buyerMenuAnchor, setBuyerMenuAnchor] = useState(null);
+  const [productMenuAnchor, setProductMenuAnchor] = useState(null);
+
   const [entries, setEntries] = useState([]);
   const [editingIndex, setEditingIndex] = useState(null);
   const [openDialog, setOpenDialog] = useState(false);
@@ -303,6 +316,12 @@ function Home() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedEntryId, setSelectedEntryId] = useState(null);
   const [liveTime, setLiveTime] = useState(new Date());
+  const [currentUser, setCurrentUser] = useState(null);
+
+  const role = (currentUser?.role || '').toLowerCase();
+  const canDeleteTicket = role === 'admin' || role === 'super admin';
+  const canRemoveFirstWeight = role === 'admin' || role === 'super admin';
+  const canRemoveSecondWeight = role === 'admin' || role === 'super admin';
   const audioMapRef = useRef(null);
 
   const mapDbRowToEntry = (row) => ({
@@ -312,6 +331,8 @@ function Home() {
     sellerName: row.sellername ?? '',
     buyerName: row.buyername ?? '',
     productName: row.productname ?? '',
+    userId: row.userid ?? null,
+    userName: row.username ?? '',
     specification: row.specification ?? '',
     packingType: row.packingtype ?? '',
     fee: row.fee !== null && row.fee !== undefined ? String(row.fee) : '',
@@ -335,6 +356,8 @@ function Home() {
       sellername: data.sellerName ?? null,
       buyername: data.buyerName ?? null,
       productname: data.productName ?? null,
+      userid: data.userId ?? null,
+      username: data.userName ?? null,
       specification: data.specification ?? null,
       packingtype: data.packingType ?? null,
       fee: data.fee ?? null,
@@ -423,11 +446,41 @@ function Home() {
       setEntries(sampleEntries);
     };
 
+    const loadLookups = async () => {
+      try {
+        if (window?.electronAPI?.dbTruckList) {
+          const trucks = await window.electronAPI.dbTruckList();
+          if (Array.isArray(trucks)) {
+            setTruckOptions(trucks.map((t) => t.trucknumber).filter(Boolean));
+          }
+        }
+        if (window?.electronAPI?.dbDriverList) {
+          const drivers = await window.electronAPI.dbDriverList();
+          if (Array.isArray(drivers)) {
+            setDriverOptions(drivers.map((d) => d.drivername).filter(Boolean));
+          }
+        }
+        if (window?.electronAPI?.dbPartyList) {
+          const parties = await window.electronAPI.dbPartyList();
+          if (Array.isArray(parties)) {
+            setPartyOptions(parties.map((p) => p.partyname).filter(Boolean));
+          }
+        }
+        if (window?.electronAPI?.dbProductList) {
+          const products = await window.electronAPI.dbProductList();
+          if (Array.isArray(products)) {
+            setProductOptions(products.map((p) => p.productname).filter(Boolean));
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load dropdown data:', error);
+      }
+    };
+
     loadEntries();
+    loadLookups();
   }, []);
 
-  useEffect(() => {
-  }, []);
 
   useEffect(() => {
     audioMapRef.current = {
@@ -457,6 +510,23 @@ function Home() {
     }, 1000);
 
     return () => clearInterval(intervalId);
+  }, []);
+
+  useEffect(() => {
+    const loadCurrentUser = async () => {
+      if (window?.electronAPI?.currentUser) {
+        try {
+          const user = await window.electronAPI.currentUser();
+          if (user) {
+            setCurrentUser(user);
+          }
+        } catch (error) {
+          console.error('Failed to load current user:', error);
+        }
+      }
+    };
+
+    loadCurrentUser();
   }, []);
 
   const formattedLiveTime = liveTime.toLocaleTimeString('en-US', {
@@ -572,6 +642,15 @@ function Home() {
   };
 
   const handleRemoveFirstWeight = () => {
+    if (!canRemoveFirstWeight) {
+      setSnackbar({
+        open: true,
+        message: 'Permission denied: remove first weight',
+        severity: 'error'
+      });
+      playAlertSound('error');
+      return;
+    }
     setFormData(prev => ({
       ...prev,
       firstWeight: '',
@@ -587,6 +666,15 @@ function Home() {
   };
 
   const handleRemoveSecondWeight = () => {
+    if (!canRemoveSecondWeight) {
+      setSnackbar({
+        open: true,
+        message: 'Permission denied: remove second weight',
+        severity: 'error'
+      });
+      playAlertSound('error');
+      return;
+    }
     setFormData(prev => ({
       ...prev,
       secondWeight: '',
@@ -638,7 +726,13 @@ function Home() {
       updatedFormData.secondWeightDateTime = currentDateTime;
     }
 
-    const dbPayload = toDbPayload(updatedFormData);
+    const updatedFormDataWithUser = {
+      ...updatedFormData,
+      userId: currentUser?.id ?? null,
+      userName: currentUser?.username ?? ''
+    };
+
+    const dbPayload = toDbPayload(updatedFormDataWithUser);
 
     if (editingIndex !== null) {
       const updatedEntries = [...entries];
@@ -726,6 +820,15 @@ function Home() {
   };
 
   const handleDelete = (index) => {
+    if (!canDeleteTicket) {
+      setSnackbar({
+        open: true,
+        message: 'Permission denied: delete ticket',
+        severity: 'error'
+      });
+      playAlertSound('error');
+      return;
+    }
     setOpenDialog(true);
     setDeleteIndex(index);
   };
@@ -1341,6 +1444,15 @@ function Home() {
                         }}>
                           {formattedLiveTime}
                         </Typography>
+                        <Typography sx={{
+                          mt: 0.5,
+                          fontSize: '0.85rem',
+                          fontWeight: 800,
+                          color: '#2563eb',
+                          letterSpacing: 0.6
+                        }}>
+                          {currentUser?.username || 'User'}
+                        </Typography>
                       </Box>
                     </Reveal>
                   </Box>
@@ -1418,7 +1530,7 @@ function Home() {
                             </Typography>
                             <Grid container spacing={1}>
                               <Grid item xs={12}>
-                                <DataField
+                                                                <DataField
                                   fullWidth
                                   label="Driver Name *"
                                   name="driverName"
@@ -1432,6 +1544,16 @@ function Home() {
                                         <PersonIcon fontSize="small" />
                                       </InputAdornment>
                                     ),
+                                    endAdornment: (
+                                      <InputAdornment position="end">
+                                        <IconButton
+                                          size="small"
+                                          onClick={(event) => setDriverMenuAnchor(event.currentTarget)}
+                                        >
+                                          <ArrowDropDownIcon fontSize="small" />
+                                        </IconButton>
+                                      </InputAdornment>
+                                    )
                                   }}
                                   sx={{
                                     '& .MuiOutlinedInput-input': {
@@ -1439,9 +1561,29 @@ function Home() {
                                     }
                                   }}
                                 />
+                                <Menu
+                                  anchorEl={driverMenuAnchor}
+                                  open={Boolean(driverMenuAnchor)}
+                                  onClose={() => setDriverMenuAnchor(null)}
+                                >
+                                  {driverOptions.length === 0 && (
+                                    <MenuItem disabled>No drivers</MenuItem>
+                                  )}
+                                  {driverOptions.map((name) => (
+                                    <MenuItem
+                                      key={name}
+                                      onClick={() => {
+                                        setFormData((prev) => ({ ...prev, driverName: name }));
+                                        setDriverMenuAnchor(null);
+                                      }}
+                                    >
+                                      {name}
+                                    </MenuItem>
+                                  ))}
+                                </Menu>
                               </Grid>
                               <Grid item xs={12}>
-                                <DataField
+                                                                <DataField
                                   fullWidth
                                   label="Truck Number *"
                                   name="truckNumber"
@@ -1455,6 +1597,16 @@ function Home() {
                                         <LocalShippingIcon fontSize="small" />
                                       </InputAdornment>
                                     ),
+                                    endAdornment: (
+                                      <InputAdornment position="end">
+                                        <IconButton
+                                          size="small"
+                                          onClick={(event) => setTruckMenuAnchor(event.currentTarget)}
+                                        >
+                                          <ArrowDropDownIcon fontSize="small" />
+                                        </IconButton>
+                                      </InputAdornment>
+                                    )
                                   }}
                                   sx={{
                                     '& .MuiOutlinedInput-input': {
@@ -1462,6 +1614,26 @@ function Home() {
                                     }
                                   }}
                                 />
+                                <Menu
+                                  anchorEl={truckMenuAnchor}
+                                  open={Boolean(truckMenuAnchor)}
+                                  onClose={() => setTruckMenuAnchor(null)}
+                                >
+                                  {truckOptions.length === 0 && (
+                                    <MenuItem disabled>No trucks</MenuItem>
+                                  )}
+                                  {truckOptions.map((truck) => (
+                                    <MenuItem
+                                      key={truck}
+                                      onClick={() => {
+                                        setFormData((prev) => ({ ...prev, truckNumber: truck }));
+                                        setTruckMenuAnchor(null);
+                                      }}
+                                    >
+                                      {truck}
+                                    </MenuItem>
+                                  ))}
+                                </Menu>
                               </Grid>
                             </Grid>
                             </Paper>
@@ -1503,6 +1675,16 @@ function Home() {
                                         <FactoryIcon fontSize="small" />
                                       </InputAdornment>
                                     ),
+                                    endAdornment: (
+                                      <InputAdornment position="end">
+                                        <IconButton
+                                          size="small"
+                                          onClick={(event) => setSellerMenuAnchor(event.currentTarget)}
+                                        >
+                                          <ArrowDropDownIcon fontSize="small" />
+                                        </IconButton>
+                                      </InputAdornment>
+                                    )
                                   }}
                                   sx={{
                                     '& .MuiOutlinedInput-input': {
@@ -1510,6 +1692,26 @@ function Home() {
                                     }
                                   }}
                                 />
+                                <Menu
+                                  anchorEl={sellerMenuAnchor}
+                                  open={Boolean(sellerMenuAnchor)}
+                                  onClose={() => setSellerMenuAnchor(null)}
+                                >
+                                  {partyOptions.length === 0 && (
+                                    <MenuItem disabled>No parties</MenuItem>
+                                  )}
+                                  {partyOptions.map((name) => (
+                                    <MenuItem
+                                      key={name}
+                                      onClick={() => {
+                                        setFormData((prev) => ({ ...prev, sellerName: name }));
+                                        setSellerMenuAnchor(null);
+                                      }}
+                                    >
+                                      {name}
+                                    </MenuItem>
+                                  ))}
+                                </Menu>
                               </Grid>
                               <Grid item xs={12}>
                                 <DataField
@@ -1525,6 +1727,16 @@ function Home() {
                                         <ShoppingCartIcon fontSize="small" />
                                       </InputAdornment>
                                     ),
+                                    endAdornment: (
+                                      <InputAdornment position="end">
+                                        <IconButton
+                                          size="small"
+                                          onClick={(event) => setBuyerMenuAnchor(event.currentTarget)}
+                                        >
+                                          <ArrowDropDownIcon fontSize="small" />
+                                        </IconButton>
+                                      </InputAdornment>
+                                    )
                                   }}
                                   sx={{
                                     '& .MuiOutlinedInput-input': {
@@ -1532,6 +1744,26 @@ function Home() {
                                     }
                                   }}
                                 />
+                                <Menu
+                                  anchorEl={buyerMenuAnchor}
+                                  open={Boolean(buyerMenuAnchor)}
+                                  onClose={() => setBuyerMenuAnchor(null)}
+                                >
+                                  {partyOptions.length === 0 && (
+                                    <MenuItem disabled>No parties</MenuItem>
+                                  )}
+                                  {partyOptions.map((name) => (
+                                    <MenuItem
+                                      key={name}
+                                      onClick={() => {
+                                        setFormData((prev) => ({ ...prev, buyerName: name }));
+                                        setBuyerMenuAnchor(null);
+                                      }}
+                                    >
+                                      {name}
+                                    </MenuItem>
+                                  ))}
+                                </Menu>
                               </Grid>
                             </Grid>
                             </Paper>
@@ -1539,7 +1771,7 @@ function Home() {
                         </Grid>
 
                         {/* Product Details - Compact */}
-                        <Grid item xs={12} md={6}>
+                        <Grid item xs={12} md={5}>
                           <Reveal delay={160}>
                           <Paper sx={{ 
                             p: 1.5, 
@@ -1574,6 +1806,16 @@ function Home() {
                                         <InventoryIcon fontSize="small" />
                                       </InputAdornment>
                                     ),
+                                    endAdornment: (
+                                      <InputAdornment position="end">
+                                        <IconButton
+                                          size="small"
+                                          onClick={(event) => setProductMenuAnchor(event.currentTarget)}
+                                        >
+                                          <ArrowDropDownIcon fontSize="small" />
+                                        </IconButton>
+                                      </InputAdornment>
+                                    )
                                   }}
                                   sx={{
                                     '& .MuiOutlinedInput-input': {
@@ -1581,6 +1823,26 @@ function Home() {
                                     }
                                   }}
                                 />
+                                <Menu
+                                  anchorEl={productMenuAnchor}
+                                  open={Boolean(productMenuAnchor)}
+                                  onClose={() => setProductMenuAnchor(null)}
+                                >
+                                  {productOptions.length === 0 && (
+                                    <MenuItem disabled>No products</MenuItem>
+                                  )}
+                                  {productOptions.map((name) => (
+                                    <MenuItem
+                                      key={name}
+                                      onClick={() => {
+                                        setFormData((prev) => ({ ...prev, productName: name }));
+                                        setProductMenuAnchor(null);
+                                      }}
+                                    >
+                                      {name}
+                                    </MenuItem>
+                                  ))}
+                                </Menu>
                               </Grid>
                               <Grid item xs={12} md={6}>
                                 <DataField

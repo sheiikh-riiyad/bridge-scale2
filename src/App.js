@@ -12,7 +12,6 @@ function App() {
       <div className="App">
         {/* Navbar will be visible on all pages */}
         <Navbar/>
-        
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/home" element={<Home />} />

@@ -197,12 +197,33 @@ function Management() {
       }
     };
 
+    const loadCurrentUser = async () => {
+      if (window?.electronAPI?.currentUser) {
+        try {
+          const user = await window.electronAPI.currentUser();
+          if (user) {
+            setOwner((prev) => ({
+              ...prev,
+              name: user.username || prev.name,
+              contact: user.contact || prev.contact,
+              email: user.email || prev.email,
+              role: user.role || prev.role,
+              photo: user.photo || prev.photo
+            }));
+          }
+        } catch (error) {
+          console.error('Failed to load current user:', error);
+        }
+      }
+    };
+
     loadCompany();
     loadUsers();
     loadProducts();
     loadParties();
     loadTrucks();
     loadDrivers();
+    loadCurrentUser();
   }, []);
 
   const [owner, setOwner] = useState({
@@ -212,6 +233,26 @@ function Management() {
     role: 'Owner / Administrator',
     photo: 'AC'
   });
+
+  const ownerPhotoSrc = owner.photo
+    ? (owner.photo.startsWith('data:') ? owner.photo : `data:image/png;base64,${owner.photo}`)
+    : '';
+
+  const role = (owner?.role || '').toLowerCase();
+  const isUser = role === 'user';
+  const isManager = role === 'manager';
+  const isAdmin = role === 'admin';
+  const isSuperAdmin = role === 'super admin';
+
+  const canUpdateCompany = isUser || isManager || isAdmin || isSuperAdmin;
+  const canAddUser = isAdmin || isSuperAdmin;
+  const canUpdateUser = isAdmin || isSuperAdmin;
+  const canDeleteUser = isAdmin || isSuperAdmin;
+  const canUpdateOwner = isAdmin || isSuperAdmin;
+
+  const canAddEntities = isUser || isManager || isAdmin || isSuperAdmin;
+  const canUpdateEntities = isAdmin || isSuperAdmin;
+  const canDeleteEntities = isManager || isAdmin || isSuperAdmin;
 
   const [users, setUsers] = useState([
     { id: 1, name: 'Michael Torres', contact: '+1 (619) 555-0181', email: 'm.torres@bridgescale.com', role: 'Weighbridge Operator', photo: '' },
@@ -321,6 +362,17 @@ function Management() {
   };
 
   const handleSave = async () => {
+    if (dialog.section === 'company' && !canUpdateCompany) return;
+    if (dialog.section === 'owner' && !canUpdateOwner) return;
+    if (dialog.section === 'users' && dialog.mode === 'add' && !canAddUser) return;
+    if (dialog.section === 'users' && dialog.mode !== 'add' && !canUpdateUser) return;
+    if (dialog.section === 'products' && !canAddEntities) return;
+    if (dialog.section === 'parties' && dialog.mode === 'add' && !canAddEntities) return;
+    if (dialog.section === 'parties' && dialog.mode !== 'add' && !canUpdateEntities) return;
+    if (dialog.section === 'trucks' && dialog.mode === 'add' && !canAddEntities) return;
+    if (dialog.section === 'trucks' && dialog.mode !== 'add' && !canUpdateEntities) return;
+    if (dialog.section === 'drivers' && dialog.mode === 'add' && !canAddEntities) return;
+    if (dialog.section === 'drivers' && dialog.mode !== 'add' && !canUpdateEntities) return;
     if (dialog.section === 'company') {
       setCompany((prev) => ({ ...prev, ...form }));
       if (window?.electronAPI?.dbCompanySave) {
@@ -513,6 +565,11 @@ function Management() {
 
   const handleDelete = async () => {
     const { section, index } = deleteDialog;
+    if (section === 'users' && !canDeleteUser) return;
+    if (section === 'products' && !canDeleteEntities) return;
+    if (section === 'parties' && !canDeleteEntities) return;
+    if (section === 'trucks' && !canDeleteEntities) return;
+    if (section === 'drivers' && !canDeleteEntities) return;
     if (section === 'users') {
       const userToDelete = users[index];
       if (userToDelete?.id && window?.electronAPI?.dbUserDelete) {
@@ -691,7 +748,7 @@ function Management() {
               </Typography>
             </Box>
             <Box sx={{ ml: 'auto' }} className="no-print">
-              <Button variant="outlined" size="small" onClick={() => openDialog('company', 'edit')}>
+              <Button variant="outlined" size="small" disabled={!canUpdateCompany} onClick={() => { if (!canUpdateCompany) return; openDialog('company', 'edit'); }}>
                 Edit Company
               </Button>
             </Box>
@@ -725,7 +782,9 @@ function Management() {
               <SectionCard>
                 <CardContent>
                   <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 1.5 }}>
-                    <Avatar sx={{ bgcolor: '#0ea5e9' }}>{owner.photo}</Avatar>
+                    <Avatar src={ownerPhotoSrc || undefined} sx={{ bgcolor: '#0ea5e9' }}>
+                      {!ownerPhotoSrc ? owner.photo : null}
+                    </Avatar>
                     <Box>
                       <Typography variant="subtitle1" fontWeight={700} sx={{ color: '#0f172a' }}>
                         Owner Information
@@ -741,7 +800,7 @@ function Management() {
                   <InfoRow icon={<EmailIcon fontSize="small" />} label="Email" value={owner.email} />
                   <InfoRow icon={<Chip label={owner.role} size="small" />} label="Role" value="" />
                   <Box sx={{ mt: 1 }}>
-                    <Button variant="outlined" size="small" onClick={() => openDialog('owner', 'edit')}>
+                    <Button variant="outlined" size="small" disabled={!canUpdateOwner} onClick={() => { if (!canUpdateOwner) return; openDialog('owner', 'edit'); }}>
                       Edit Owner
                     </Button>
                   </Box>
@@ -767,7 +826,8 @@ function Management() {
                       variant="outlined"
                       startIcon={<AddIcon />}
                       sx={{ ml: 'auto' }}
-                      onClick={() => openDialog('users', 'add')}
+                      disabled={!canAddUser}
+                      onClick={() => { if (!canAddUser) return; openDialog('users', 'add'); }}
                     >
                       Add User
                     </Button>
@@ -801,12 +861,12 @@ function Management() {
                             </IconButton>
                           </Tooltip>
                           <Tooltip title="Edit user">
-                            <IconButton size="small" onClick={() => openDialog('users', 'edit', index)}>
+                            <IconButton size="small" disabled={!canUpdateUser} onClick={() => { if (!canUpdateUser) return; openDialog('users', 'edit', index); }}>
                               <EditIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
                           <Tooltip title="Delete user">
-                            <IconButton size="small" color="error" onClick={() => openDeleteDialog('users', index)}>
+                            <IconButton size="small" color="error" disabled={!canDeleteUser} onClick={() => { if (!canDeleteUser) return; openDeleteDialog('users', index); }}>
                               <DeleteIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
@@ -836,7 +896,8 @@ function Management() {
                       variant="outlined"
                       startIcon={<AddIcon />}
                       sx={{ ml: 'auto' }}
-                      onClick={() => openDialog('products', 'add')}
+                      disabled={!canAddEntities}
+                      onClick={() => { if (!canAddEntities) return; openDialog('products', 'add'); }}
                     >
                       Add Product
                     </Button>
@@ -848,7 +909,7 @@ function Management() {
                         key={product.id}
                         label={product.name}
                         sx={{ bgcolor: '#f1f5f9' }}
-                        onDelete={() => openDeleteDialog('products', index)}
+                        onDelete={!canDeleteEntities ? undefined : () => openDeleteDialog('products', index)}
                         deleteIcon={<DeleteIcon />}
                         onClick={() => openDialog('products', 'edit', index)}
                       />
@@ -876,7 +937,7 @@ function Management() {
                       variant="outlined"
                       startIcon={<AddIcon />}
                       sx={{ ml: 'auto' }}
-                      onClick={() => openDialog('parties', 'add')}
+                      disabled={!canAddEntities} onClick={() => { if (!canAddEntities) return; openDialog('parties', 'add'); }}
                     >
                       Add Party
                     </Button>
@@ -910,12 +971,12 @@ function Management() {
                             </IconButton>
                           </Tooltip>
                           <Tooltip title="Edit party">
-                            <IconButton size="small" onClick={() => openDialog('parties', 'edit', index)}>
+                            <IconButton size="small" onClick={() => (canUpdateEntities ? openDialog('parties', 'edit', index) : null)}>
                               <EditIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
                           <Tooltip title="Delete party">
-                            <IconButton size="small" color="error" onClick={() => openDeleteDialog('parties', index)}>
+                            <IconButton size="small" color="error" onClick={() => (canDeleteEntities ? openDeleteDialog('parties', index) : null)}>
                               <DeleteIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
@@ -945,7 +1006,7 @@ function Management() {
                       variant="outlined"
                       startIcon={<AddIcon />}
                       sx={{ ml: 'auto' }}
-                      onClick={() => openDialog('trucks', 'add')}
+                      disabled={!canAddEntities} onClick={() => { if (!canAddEntities) return; openDialog('trucks', 'add'); }}
                     >
                       Add Truck
                     </Button>
@@ -969,12 +1030,12 @@ function Management() {
                         />
                         <Box sx={{ display: 'flex', gap: 0.5 }}>
                           <Tooltip title="Edit truck">
-                            <IconButton size="small" onClick={() => openDialog('trucks', 'edit', index)}>
+                            <IconButton size="small" onClick={() => (canUpdateEntities ? openDialog('trucks', 'edit', index) : null)}>
                               <EditIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
                           <Tooltip title="Delete truck">
-                            <IconButton size="small" color="error" onClick={() => openDeleteDialog('trucks', index)}>
+                            <IconButton size="small" color="error" onClick={() => (canDeleteEntities ? openDeleteDialog('trucks', index) : null)}>
                               <DeleteIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
@@ -1004,7 +1065,7 @@ function Management() {
                       variant="outlined"
                       startIcon={<AddIcon />}
                       sx={{ ml: 'auto' }}
-                      onClick={() => openDialog('drivers', 'add')}
+                      disabled={!canAddEntities} onClick={() => { if (!canAddEntities) return; openDialog('drivers', 'add'); }}
                     >
                       Add Driver
                     </Button>
@@ -1038,12 +1099,12 @@ function Management() {
                             </IconButton>
                           </Tooltip>
                           <Tooltip title="Edit driver">
-                            <IconButton size="small" onClick={() => openDialog('drivers', 'edit', index)}>
+                            <IconButton size="small" onClick={() => (canUpdateEntities ? openDialog('drivers', 'edit', index) : null)}>
                               <EditIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
                           <Tooltip title="Delete driver">
-                            <IconButton size="small" color="error" onClick={() => openDeleteDialog('drivers', index)}>
+                            <IconButton size="small" color="error" onClick={() => (canDeleteEntities ? openDeleteDialog('drivers', index) : null)}>
                               <DeleteIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
