@@ -154,6 +154,27 @@ const ReadWeightButton = styled(Button)(({ theme }) => ({
   }
 }));
 
+const PrintButton = styled(Button)(({ theme }) => ({
+  background: 'linear-gradient(45deg, #455a64 30%, #607d8b 90%)',
+  border: 0,
+  borderRadius: '10px',
+  color: 'white',
+  height: 40,
+  padding: '0 20px',
+  boxShadow: '0 2px 10px rgba(96, 125, 139, 0.3)',
+  fontWeight: 'bold',
+  fontSize: '14px',
+  '&:hover': {
+    background: 'linear-gradient(45deg, #37474f 30%, #546e7a 90%)',
+    boxShadow: '0 3px 15px rgba(96, 125, 139, 0.4)',
+  },
+  '&:disabled': {
+    background: '#cccccc',
+    color: '#666666',
+    boxShadow: 'none',
+  }
+}));
+
 const ResetButton = styled(Button)(({ theme }) => ({
   background: 'linear-gradient(45deg, #ff9800 30%, #ff5722 90%)',
   border: 0,
@@ -259,6 +280,7 @@ function Home() {
     buyerName: '',
     productName: '',
     specification: '',
+    packingType: '',
     fee: '',
     firstWeight: '',
     secondWeight: '',
@@ -279,8 +301,51 @@ function Home() {
     severity: 'success' 
   });
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [selectedEntryId, setSelectedEntryId] = useState(null);
   const [liveTime, setLiveTime] = useState(new Date());
   const audioMapRef = useRef(null);
+
+  const mapDbRowToEntry = (row) => ({
+    id: row.id,
+    driverName: row.drivername ?? '',
+    truckNumber: row.trucknumber ?? '',
+    sellerName: row.sellername ?? '',
+    buyerName: row.buyername ?? '',
+    productName: row.productname ?? '',
+    specification: row.specification ?? '',
+    packingType: row.packingtype ?? '',
+    fee: row.fee !== null && row.fee !== undefined ? String(row.fee) : '',
+    firstWeight: row.firstweight !== null && row.firstweight !== undefined ? String(row.firstweight) : '',
+    secondWeight: row.secondweight !== null && row.secondweight !== undefined ? String(row.secondweight) : '',
+    netWeight: row.netweight !== null && row.netweight !== undefined ? String(row.netweight) : '',
+    date: '',
+    time: '',
+    firstWeightDateTime: row.firstweightdate ?? '',
+    secondWeightDateTime: row.secondweightdate ?? ''
+  });
+
+  const toDbPayload = (data) => {
+    const net = parseFloat(data.netWeight);
+    const spec = parseFloat(data.specification);
+    const avg = Number.isFinite(net) && Number.isFinite(spec) && spec !== 0 ? net / spec : null;
+
+    return {
+      drivername: data.driverName ?? null,
+      trucknumber: data.truckNumber ?? null,
+      sellername: data.sellerName ?? null,
+      buyername: data.buyerName ?? null,
+      productname: data.productName ?? null,
+      specification: data.specification ?? null,
+      packingtype: data.packingType ?? null,
+      fee: data.fee ?? null,
+      firstweight: data.firstWeight ?? null,
+      firstweightdate: data.firstWeightDateTime ?? null,
+      secondweight: data.secondWeight ?? null,
+      secondweightdate: data.secondWeightDateTime ?? null,
+      netweight: data.netWeight ?? null,
+      avarage: avg === null ? null : Math.round(avg)
+    };
+  };
 
   // Sample data for demonstration
   useEffect(() => {
@@ -292,7 +357,8 @@ function Home() {
         sellerName: 'ABC Traders',
         buyerName: 'XYZ Corporation',
         productName: 'Steel Rods',
-        specification: 'Grade 60, 12mm diameter',
+        specification: '12',
+        packingType: 'Bundle',
         firstWeight: '45000',
         secondWeight: '15000',
         netWeight: '30000',
@@ -308,7 +374,8 @@ function Home() {
         sellerName: 'Global Metals',
         buyerName: 'BuildRight Inc',
         productName: 'Cement Bags',
-        specification: 'OPC 43 Grade, 50kg bags',
+        specification: '43',
+        packingType: 'Bag',
         firstWeight: '52000',
         secondWeight: '16000',
         netWeight: '36000',
@@ -324,7 +391,8 @@ function Home() {
         sellerName: 'Steel Works Inc',
         buyerName: 'Construction Co',
         productName: 'Steel Beams',
-        specification: 'H-Beam, 200x200mm',
+        specification: '200',
+        packingType: 'Piece',
         firstWeight: '60000',
         secondWeight: '18000',
         netWeight: '42000',
@@ -334,7 +402,31 @@ function Home() {
         secondWeightDateTime: '2024-01-16T11:15'
       }
     ];
-    setEntries(sampleEntries);
+
+    const loadEntries = async () => {
+      if (window?.electronAPI?.dbList) {
+        try {
+          const rows = await window.electronAPI.dbList();
+          if (Array.isArray(rows)) {
+            if (rows.length > 0) {
+              setEntries(rows.map(mapDbRowToEntry));
+              return;
+            }
+            setEntries([]);
+            return;
+          }
+        } catch (error) {
+          console.error('Failed to load DB entries:', error);
+        }
+      }
+
+      setEntries(sampleEntries);
+    };
+
+    loadEntries();
+  }, []);
+
+  useEffect(() => {
   }, []);
 
   useEffect(() => {
@@ -373,6 +465,10 @@ function Home() {
     second: '2-digit',
     hour12: true
   });
+
+  const nextId = entries.length > 0
+    ? (Math.max(...entries.map((entry) => Number(entry.id) || 0)) + 1)
+    : 1;
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -457,6 +553,7 @@ function Home() {
       buyerName: '',
       productName: '',
       specification: '',
+      packingType: '',
       fee: '',
       firstWeight: '',
       secondWeight: '',
@@ -504,36 +601,26 @@ function Home() {
     playAlertSound('warning');
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!formData.truckNumber || !formData.productName) {
+    if (!formData.truckNumber || !formData.productName || !formData.specification || !formData.fee) {
       setSnackbar({
         open: true,
-        message: 'Truck number and product name are required!',
+        message: 'Truck number, product name, specification, and fee are required!',
         severity: 'error'
       });
       playAlertSound('error');
-      return;
-    }
-
-    if (!formData.fee) {
-      setSnackbar({
-        open: true,
-        message: 'Fee is required!',
-        severity: 'warning'
-      });
-      playAlertSound('warning');
       return;
     }
 
     if (!formData.firstWeight && !formData.secondWeight) {
       setSnackbar({
         open: true,
-        message: 'At least one weight measurement is required!',
-        severity: 'error'
+        message: 'Please enter at least one weight (first or second).',
+        severity: 'warning'
       });
-      playAlertSound('error');
+      playAlertSound('warning');
       return;
     }
 
@@ -551,9 +638,29 @@ function Home() {
       updatedFormData.secondWeightDateTime = currentDateTime;
     }
 
+    const dbPayload = toDbPayload(updatedFormData);
+
     if (editingIndex !== null) {
       const updatedEntries = [...entries];
-      updatedEntries[editingIndex] = { ...updatedFormData, id: Date.now() };
+      const existingEntry = updatedEntries[editingIndex];
+      const nextId = existingEntry?.id ?? Date.now();
+
+      if (window?.electronAPI?.dbUpdate && existingEntry?.id) {
+        try {
+          await window.electronAPI.dbUpdate(existingEntry.id, dbPayload);
+        } catch (error) {
+          console.error('Failed to update DB entry:', error);
+          setSnackbar({
+            open: true,
+            message: 'Database update failed. Please try again.',
+            severity: 'error'
+          });
+          playAlertSound('error');
+          return;
+        }
+      }
+
+      updatedEntries[editingIndex] = { ...updatedFormData, id: nextId };
       setEntries(updatedEntries);
       setSnackbar({
         open: true,
@@ -563,36 +670,59 @@ function Home() {
       playAlertSound('success');
       setEditingIndex(null);
     } else {
-      setEntries(prev => [...prev, { ...updatedFormData, id: Date.now() }]);
+      let newId = Date.now();
+
+      if (window?.electronAPI?.dbCreate) {
+        try {
+          const result = await window.electronAPI.dbCreate(dbPayload);
+          if (result && result.id) {
+            newId = result.id;
+          }
+        } catch (error) {
+          console.error('Failed to create DB entry:', error);
+          setSnackbar({
+            open: true,
+            message: 'Database insert failed. Please try again.',
+            severity: 'error'
+          });
+          playAlertSound('error');
+          return;
+        }
+      }
+
+      setEntries(prev => [...prev, { ...updatedFormData, id: newId }]);
       setSnackbar({
         open: true,
         message: 'New weight ticket created successfully!',
         severity: 'success'
       });
       playAlertSound('success');
+      setFormData({
+        driverName: '',
+        truckNumber: '',
+        sellerName: '',
+        buyerName: '',
+        productName: '',
+        specification: '',
+        packingType: '',
+        fee: '',
+        firstWeight: '',
+        secondWeight: '',
+        netWeight: '',
+        date: new Date().toISOString().split('T')[0],
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        firstWeightDateTime: '',
+        secondWeightDateTime: ''
+      });
     }
-
-    setFormData({
-      driverName: '',
-      truckNumber: '',
-      sellerName: '',
-      buyerName: '',
-      productName: '',
-      specification: '',
-      fee: '',
-      firstWeight: '',
-      secondWeight: '',
-      netWeight: '',
-      date: new Date().toISOString().split('T')[0],
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      firstWeightDateTime: '',
-      secondWeightDateTime: ''
-    });
   };
 
   const handleEdit = (index) => {
     setFormData(entries[index]);
     setEditingIndex(index);
+    if (entries[index]?.id !== undefined) {
+      setSelectedEntryId(entries[index].id);
+    }
   };
 
   const handleDelete = (index) => {
@@ -600,10 +730,27 @@ function Home() {
     setDeleteIndex(index);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (deleteIndex === null) {
       setOpenDialog(false);
       return;
+    }
+
+    const entryToDelete = entries[deleteIndex];
+
+    if (window?.electronAPI?.dbDelete && entryToDelete?.id) {
+      try {
+        await window.electronAPI.dbDelete(entryToDelete.id);
+      } catch (error) {
+        console.error('Failed to delete DB entry:', error);
+        setSnackbar({
+          open: true,
+          message: 'Database delete failed. Please try again.',
+          severity: 'error'
+        });
+        playAlertSound('error');
+        return;
+      }
     }
 
     const updatedEntries = entries.filter((_, i) => i !== deleteIndex);
@@ -646,6 +793,23 @@ function Home() {
   // Check if both weights have values
   const isReadWeightDisabled = formData.firstWeight && formData.secondWeight;
 
+  useEffect(() => {
+    if (selectedEntryId === null) return;
+    const exists = entries.some((entry) => entry.id === selectedEntryId);
+    if (!exists) {
+      setSelectedEntryId(null);
+    }
+  }, [entries, selectedEntryId]);
+
+  const escapeHtml = (value) => {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  };
+
   const playAlertSound = (type = 'error') => {
     const audioMap = audioMapRef.current;
     if (!audioMap) return;
@@ -653,6 +817,163 @@ function Home() {
     if (!audio) return;
     audio.currentTime = 0;
     audio.play().catch(() => {});
+  };
+
+  const handlePrint = () => {
+    const selectedEntry = entries.find((entry) => entry.id === selectedEntryId);
+    if (!selectedEntry) {
+      setSnackbar({
+        open: true,
+        message: 'Please select a ticket to print.',
+        severity: 'warning'
+      });
+      playAlertSound('warning');
+      return;
+    }
+
+    if (!selectedEntry.firstWeight || !selectedEntry.secondWeight) {
+      setSnackbar({
+        open: true,
+        message: 'First and second weight are required to print.',
+        severity: 'error'
+      });
+      playAlertSound('error');
+      return;
+    }
+
+    const first = parseFloat(selectedEntry.firstWeight);
+    const second = parseFloat(selectedEntry.secondWeight);
+    const netWeight = selectedEntry.netWeight || (Number.isFinite(first) && Number.isFinite(second) ? Math.abs(first - second).toFixed(2) : '');
+
+    const printWindow = window.open('', '_blank', 'width=900,height=700');
+    if (!printWindow) {
+      setSnackbar({
+        open: true,
+        message: 'Popup blocked. Please allow popups for printing.',
+        severity: 'error'
+      });
+      playAlertSound('error');
+      return;
+    }
+
+    const content = `
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>Weight Ticket - ${escapeHtml(selectedEntry.id ?? '')}</title>
+          <style>
+            @page { size: 8.3in 3.9in; margin: 0.3in; }
+            * { box-sizing: border-box; }
+            body {
+              margin: 0;
+              font-family: Arial, Helvetica, sans-serif;
+              color: #111;
+            }
+            .sheet {
+              width: 8.3in;
+              height: 3.9in;
+              padding: 0.2in;
+              border: 1px solid #ccc;
+            }
+            .header {
+              display: flex;
+              justify-content: space-between;
+              align-items: baseline;
+              margin-bottom: 0.12in;
+            }
+            .title {
+              font-size: 18px;
+              font-weight: 700;
+            }
+            .meta {
+              font-size: 12px;
+              color: #444;
+            }
+            .grid {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 0.08in 0.2in;
+              font-size: 12px;
+            }
+            .row {
+              display: flex;
+              gap: 0.12in;
+            }
+            .label {
+              min-width: 1.1in;
+              color: #555;
+              font-weight: 600;
+            }
+            .value {
+              font-weight: 600;
+              color: #111;
+            }
+            .weights {
+              margin-top: 0.15in;
+              display: grid;
+              grid-template-columns: 1fr 1fr 1fr;
+              gap: 0.12in;
+              font-size: 13px;
+            }
+            .weight-box {
+              border: 1px solid #ddd;
+              padding: 0.12in;
+              border-radius: 6px;
+            }
+            .weight-title {
+              font-size: 11px;
+              color: #666;
+              margin-bottom: 0.04in;
+            }
+            .weight-value {
+              font-size: 15px;
+              font-weight: 700;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="sheet">
+            <div class="header">
+              <div class="title">Weight Ticket</div>
+              <div class="meta">ID: ${escapeHtml(selectedEntry.id ?? '—')}</div>
+            </div>
+            <div class="grid">
+              <div class="row"><div class="label">Truck</div><div class="value">${escapeHtml(selectedEntry.truckNumber)}</div></div>
+              <div class="row"><div class="label">Driver</div><div class="value">${escapeHtml(selectedEntry.driverName)}</div></div>
+              <div class="row"><div class="label">Buyer</div><div class="value">${escapeHtml(selectedEntry.buyerName)}</div></div>
+              <div class="row"><div class="label">Seller</div><div class="value">${escapeHtml(selectedEntry.sellerName)}</div></div>
+              <div class="row"><div class="label">Product</div><div class="value">${escapeHtml(selectedEntry.productName)}</div></div>
+              <div class="row"><div class="label">Spec</div><div class="value">${escapeHtml(selectedEntry.specification)}</div></div>
+            </div>
+            <div class="weights">
+              <div class="weight-box">
+                <div class="weight-title">First Weight</div>
+                <div class="weight-value">${escapeHtml(selectedEntry.firstWeight)} kg</div>
+              </div>
+              <div class="weight-box">
+                <div class="weight-title">Second Weight</div>
+                <div class="weight-value">${escapeHtml(selectedEntry.secondWeight)} kg</div>
+              </div>
+              <div class="weight-box">
+                <div class="weight-title">Net Weight</div>
+                <div class="weight-value">${escapeHtml(netWeight)} kg</div>
+              </div>
+            </div>
+          </div>
+          <script>
+            window.onload = () => {
+              window.focus();
+              window.print();
+            };
+          </script>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(content);
+    printWindow.document.close();
   };
 
   const averageWeight = (() => {
@@ -716,6 +1037,7 @@ function Home() {
             <Table size="small">
               <TableHead>
                 <TableRow>
+                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.75rem', p: 1 }}>ID</TableCell>
                   <TableCell sx={{ fontWeight: 'bold', fontSize: '0.75rem', p: 1 }}>Truck</TableCell>
                   <TableCell sx={{ fontWeight: 'bold', fontSize: '0.75rem', p: 1 }}>Buyer</TableCell>
                   <TableCell sx={{ fontWeight: 'bold', fontSize: '0.75rem', p: 1 }}>Seller</TableCell>
@@ -730,12 +1052,15 @@ function Home() {
                   <TableRow 
                     key={entry.id}
                     hover
+                    onClick={() => setSelectedEntryId(entry.id)}
                     sx={{ 
                       '&:hover': { backgroundColor: '#f5f7fa' },
+                      backgroundColor: entry.id === selectedEntryId ? '#e3f2fd' : 'transparent',
                       cursor: 'pointer',
                       transition: 'background-color 0.2s'
                     }}
                   >
+                    <TableCell sx={{ p: 1 }}><Typography variant="body2" sx={{ fontSize: '0.75rem' }}>{entry.id ?? '—'}</Typography></TableCell>
                     <TableCell sx={{ p: 1 }}>
                       <Box>
                         <Typography variant="body2" fontWeight="medium" sx={{ fontSize: '0.8rem' }}>
@@ -792,7 +1117,8 @@ function Home() {
                         <IconButton
                           size="small"
                           color="primary"
-                          onClick={() => {
+                          onClick={(event) => {
+                            event.stopPropagation();
                             handleEdit(index);
                             setDrawerOpen(false);
                           }}
@@ -805,7 +1131,8 @@ function Home() {
                         <IconButton
                           size="small"
                           color="error"
-                          onClick={() => {
+                          onClick={(event) => {
+                            event.stopPropagation();
                             handleDelete(index);
                             setDrawerOpen(false);
                           }}
@@ -1057,6 +1384,14 @@ function Home() {
                           {/* Fill required details for accurate measurement */}
                         </Typography>
                       </Box>
+                      <Box sx={{ ml: 'auto', textAlign: 'right' }}>
+                        <Typography variant="caption" sx={{ color: '#bbdefb', fontSize: '0.75rem' }}>
+                          Selected ID
+                        </Typography>
+                        <Typography variant="subtitle2" sx={{ color: 'white', fontWeight: 700, fontSize: '0.95rem' }}>
+                          {editingIndex !== null && entries[editingIndex] ? entries[editingIndex].id : nextId}
+                        </Typography>
+                      </Box>
                     </Box>
 
                     <Box component="form" onSubmit={handleSubmit} sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
@@ -1247,16 +1582,16 @@ function Home() {
                                   }}
                                 />
                               </Grid>
-                              <Grid item xs={12}>
+                              <Grid item xs={12} md={6}>
                                 <DataField
                                   fullWidth
-                                  label="Specification"
+                                  label="Specification *"
                                   name="specification"
+                                  type="number"
                                   value={formData.specification}
                                   onChange={handleChange}
                                   size="small"
-                                  
-                                  rows={1}
+                                  required
                                   InputProps={{
                                     startAdornment: (
                                       <InputAdornment position="start" >
@@ -1264,7 +1599,36 @@ function Home() {
                                       </InputAdornment>
                                     ),
                                   }}
-                                
+                                  sx={{
+                                    '& input[type=number]': {
+                                      MozAppearance: 'textfield'
+                                    },
+                                    '& input[type=number]::-webkit-outer-spin-button': {
+                                      WebkitAppearance: 'none',
+                                      margin: 0
+                                    },
+                                    '& input[type=number]::-webkit-inner-spin-button': {
+                                      WebkitAppearance: 'none',
+                                      margin: 0
+                                    }
+                                  }}
+                                />
+                              </Grid>
+                              <Grid item xs={12} md={6}>
+                                <DataField
+                                  fullWidth
+                                  label="Packing Type"
+                                  name="packingType"
+                                  value={formData.packingType}
+                                  onChange={handleChange}
+                                  size="small"
+                                  InputProps={{
+                                    startAdornment: (
+                                      <InputAdornment position="start" >
+                                        <DescriptionIcon fontSize="small" />
+                                      </InputAdornment>
+                                    ),
+                                  }}
                                 />
                               </Grid>
                               <Grid item xs={12}>
@@ -1286,6 +1650,17 @@ function Home() {
                                   sx={{
                                     '& .MuiOutlinedInput-input': {
                                       paddingLeft: '32px',
+                                    },
+                                    '& input[type=number]': {
+                                      MozAppearance: 'textfield'
+                                    },
+                                    '& input[type=number]::-webkit-outer-spin-button': {
+                                      WebkitAppearance: 'none',
+                                      margin: 0
+                                    },
+                                    '& input[type=number]::-webkit-inner-spin-button': {
+                                      WebkitAppearance: 'none',
+                                      margin: 0
                                     }
                                   }}
                                 />
@@ -1614,18 +1989,32 @@ function Home() {
                                   </Button>
                                 </>
                               )}
-                              <SubmitButton
-                                type="submit"
-                                startIcon={editingIndex !== null ? <SaveIcon /> : <AddIcon />}
-                                sx={{ 
-                                  height: 36,
-                                  fontSize: '0.85rem',
-                                  padding: '0 18px',
-                                  width: { xs: '100%', sm: 'auto' }
-                                }}
-                              >
-                                {editingIndex !== null ? 'UPDATE' : 'CREATE'}
-                              </SubmitButton>
+                              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, width: { xs: '100%', sm: 'auto' } }}>
+                                <SubmitButton
+                                  type="submit"
+                                  startIcon={editingIndex !== null ? <SaveIcon /> : <AddIcon />}
+                                  sx={{ 
+                                    height: 36,
+                                    fontSize: '0.85rem',
+                                    padding: '0 18px',
+                                    width: { xs: '100%', sm: 'auto' }
+                                  }}
+                                >
+                                  {editingIndex !== null ? 'UPDATE' : 'CREATE'}
+                                </SubmitButton>
+                                <PrintButton
+                                  onClick={handlePrint}
+                                  startIcon={<DescriptionIcon />}
+                                  sx={{ 
+                                    height: 36,
+                                    fontSize: '0.85rem',
+                                    padding: '0 18px',
+                                    width: { xs: '100%', sm: 'auto' }
+                                  }}
+                                >
+                                  PRINT
+                                </PrintButton>
+                              </Box>
                             </Box>
                             
                             {/* Right side buttons - Compact */}
@@ -1733,6 +2122,9 @@ function Home() {
             </Box>
             {deleteIndex !== null && entries[deleteIndex] && (
               <Paper sx={{ p: 1.5, bgcolor: '#f5f5f5', borderRadius: '6px', mt: 1.5 }}>
+                <Typography variant="body2" fontWeight="medium" sx={{ fontSize: '0.9rem' }}>
+                  ID: {entries[deleteIndex].id ?? '—'}
+                </Typography>
                 <Typography variant="body2" fontWeight="medium" sx={{ fontSize: '0.9rem' }}>
                   {entries[deleteIndex].truckNumber} - {entries[deleteIndex].driverName}
                 </Typography>

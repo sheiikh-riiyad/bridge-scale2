@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Avatar,
   Box,
@@ -83,9 +83,127 @@ function Management() {
   const [company, setCompany] = useState({
     name: 'Bridge Scale Industries',
     address: '2400 Harbor Road, Bay 3, San Diego, CA 92101',
+    contact: '+1 (619) 555-0199',
     logo: 'BS',
     users: 14
   });
+
+  useEffect(() => {
+    const loadCompany = async () => {
+      if (window?.electronAPI?.dbCompanyGet) {
+        try {
+          const row = await window.electronAPI.dbCompanyGet();
+          if (row) {
+            setCompany((prev) => ({
+              ...prev,
+              name: row.companyname ?? '',
+              address: row.companyaddress ?? '',
+              contact: row.companycontact ?? ''
+            }));
+          }
+        } catch (error) {
+          console.error('Failed to load company details:', error);
+        }
+      }
+    };
+
+    const loadUsers = async () => {
+      if (window?.electronAPI?.dbUserList) {
+        try {
+          const rows = await window.electronAPI.dbUserList();
+          if (Array.isArray(rows)) {
+            if (rows.length > 0) {
+              setUsers(rows.map(mapDbUserToState));
+              return;
+            }
+            setUsers([]);
+            return;
+          }
+        } catch (error) {
+          console.error('Failed to load users:', error);
+        }
+      }
+    };
+
+    const loadProducts = async () => {
+      if (window?.electronAPI?.dbProductList) {
+        try {
+          const rows = await window.electronAPI.dbProductList();
+          if (Array.isArray(rows)) {
+            if (rows.length > 0) {
+              setProducts(rows.map(mapDbProductToState));
+              return;
+            }
+            setProducts([]);
+            return;
+          }
+        } catch (error) {
+          console.error('Failed to load products:', error);
+        }
+      }
+    };
+
+    const loadParties = async () => {
+      if (window?.electronAPI?.dbPartyList) {
+        try {
+          const rows = await window.electronAPI.dbPartyList();
+          if (Array.isArray(rows)) {
+            if (rows.length > 0) {
+              setParties(rows.map(mapDbPartyToState));
+              return;
+            }
+            setParties([]);
+            return;
+          }
+        } catch (error) {
+          console.error('Failed to load parties:', error);
+        }
+      }
+    };
+
+    const loadTrucks = async () => {
+      if (window?.electronAPI?.dbTruckList) {
+        try {
+          const rows = await window.electronAPI.dbTruckList();
+          if (Array.isArray(rows)) {
+            if (rows.length > 0) {
+              setTrucks(rows.map(mapDbTruckToState));
+              return;
+            }
+            setTrucks([]);
+            return;
+          }
+        } catch (error) {
+          console.error('Failed to load trucks:', error);
+        }
+      }
+    };
+
+    const loadDrivers = async () => {
+      if (window?.electronAPI?.dbDriverList) {
+        try {
+          const rows = await window.electronAPI.dbDriverList();
+          if (Array.isArray(rows)) {
+            if (rows.length > 0) {
+              setDrivers(rows.map(mapDbDriverToState));
+              return;
+            }
+            setDrivers([]);
+            return;
+          }
+        } catch (error) {
+          console.error('Failed to load drivers:', error);
+        }
+      }
+    };
+
+    loadCompany();
+    loadUsers();
+    loadProducts();
+    loadParties();
+    loadTrucks();
+    loadDrivers();
+  }, []);
 
   const [owner, setOwner] = useState({
     name: 'Amelia Carter',
@@ -101,20 +219,49 @@ function Management() {
     { id: 3, name: 'Ravi Patel', contact: '+1 (619) 555-0109', email: 'r.patel@bridgescale.com', role: 'QA Supervisor', photo: '' }
   ]);
 
+  const mapDbUserToState = (row) => ({
+    id: row.id,
+    name: row.username ?? '',
+    contact: row.contact ?? '',
+    email: row.email ?? '',
+    role: row.role ?? '',
+    photo: row.photo ?? ''
+  });
+
   const [parties, setParties] = useState([
     { id: 1, name: 'WestCo Steel', contact: '+1 (213) 555-0192', email: 'dispatch@westcosteel.com', address: '1200 Rail Ave, Los Angeles, CA 90001' },
     { id: 2, name: 'GreenLine Cement', contact: '+1 (951) 555-0134', email: 'orders@greenlinecement.com', address: '88 Quarry Way, Riverside, CA 92501' }
   ]);
+
+  const mapDbPartyToState = (row) => ({
+    id: row.id,
+    name: row.partyname ?? '',
+    address: row.partyaddress ?? '',
+    email: row.partyemail ?? '',
+    contact: row.partycontact ?? ''
+  });
 
   const [trucks, setTrucks] = useState([
     { id: 1, truck: 'TRK-2401' },
     { id: 2, truck: 'TRK-5718' }
   ]);
 
+  const mapDbTruckToState = (row) => ({
+    id: row.id,
+    truck: row.trucknumber ?? ''
+  });
+
   const [drivers, setDrivers] = useState([
     { id: 1, name: 'Luis Romero', address: '460 Market St, San Diego, CA', contact: '+1 (619) 555-0117' },
     { id: 2, name: 'Nina Brooks', address: '92 Seaside Blvd, Carlsbad, CA', contact: '+1 (760) 555-0166' }
   ]);
+
+  const mapDbDriverToState = (row) => ({
+    id: row.id,
+    name: row.drivername ?? '',
+    address: row.driveraddress ?? '',
+    contact: row.drivercontact ?? ''
+  });
 
   const [products, setProducts] = useState([
     { id: 1, name: 'Steel Rods' },
@@ -123,6 +270,11 @@ function Management() {
     { id: 4, name: 'Copper Wire Spools' },
     { id: 5, name: 'Limestone' }
   ]);
+
+  const mapDbProductToState = (row) => ({
+    id: row.id,
+    name: row.productname ?? ''
+  });
 
   const [dialog, setDialog] = useState({ open: false, section: '', mode: 'add', index: null });
   const [form, setForm] = useState({});
@@ -135,7 +287,7 @@ function Management() {
     } else if (section === 'owner') {
       nextForm = { ...owner };
     } else if (section === 'users') {
-      nextForm = index !== null ? { ...users[index] } : { name: '', contact: '', email: '', role: '' };
+      nextForm = index !== null ? { ...users[index], password: '' } : { name: '', contact: '', email: '', role: '', password: '' };
     } else if (section === 'parties') {
       nextForm = index !== null ? { ...parties[index] } : { name: '', contact: '', email: '', address: '' };
     } else if (section === 'trucks') {
@@ -168,46 +320,184 @@ function Management() {
     reader.readAsDataURL(file);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (dialog.section === 'company') {
       setCompany((prev) => ({ ...prev, ...form }));
+      if (window?.electronAPI?.dbCompanySave) {
+        try {
+          await window.electronAPI.dbCompanySave({
+            companyname: form.name ?? '',
+            companyaddress: form.address ?? '',
+            companycontact: form.contact ?? ''
+          });
+        } catch (error) {
+          console.error('Failed to save company details:', error);
+        }
+      }
     }
     if (dialog.section === 'owner') {
       setOwner((prev) => ({ ...prev, ...form }));
     }
     if (dialog.section === 'users') {
+      if (!form.password) {
+        alert('Password is required');
+        return;
+      }
       if (dialog.mode === 'add') {
-        setUsers((prev) => [...prev, { ...form, id: Date.now() }]);
+        let newId = Date.now();
+        if (window?.electronAPI?.dbUserCreate) {
+          try {
+            const result = await window.electronAPI.dbUserCreate({
+              username: form.name ?? '',
+              email: form.email ?? '',
+              contact: form.contact ?? '',
+              role: form.role ?? '',
+              photo: form.photo ?? '',
+              password: form.password ?? ''
+            });
+            if (result && result.id) {
+              newId = result.id;
+            }
+          } catch (error) {
+            console.error('Failed to create user:', error);
+          }
+        }
+        setUsers((prev) => [...prev, { ...form, id: newId }]);
       } else {
+        const currentUser = users[dialog.index];
+        if (currentUser?.id && window?.electronAPI?.dbUserUpdate) {
+          try {
+            await window.electronAPI.dbUserUpdate(currentUser.id, {
+              username: form.name ?? '',
+              email: form.email ?? '',
+              contact: form.contact ?? '',
+              role: form.role ?? '',
+              photo: form.photo ?? '',
+              password: form.password ?? ''
+            });
+          } catch (error) {
+            console.error('Failed to update user:', error);
+          }
+        }
         setUsers((prev) => prev.map((item, idx) => (idx === dialog.index ? { ...item, ...form } : item)));
       }
     }
     if (dialog.section === 'parties') {
       if (dialog.mode === 'add') {
-        setParties((prev) => [...prev, { ...form, id: Date.now() }]);
+        let newId = Date.now();
+        if (window?.electronAPI?.dbPartyCreate) {
+          try {
+            const result = await window.electronAPI.dbPartyCreate({
+              partyname: form.name ?? '',
+              partyaddress: form.address ?? '',
+              partyemail: form.email ?? '',
+              partycontact: form.contact ?? ''
+            });
+            if (result && result.id) {
+              newId = result.id;
+            }
+          } catch (error) {
+            console.error('Failed to create party:', error);
+          }
+        }
+        setParties((prev) => [...prev, { ...form, id: newId }]);
       } else {
+        const currentParty = parties[dialog.index];
+        if (currentParty?.id && window?.electronAPI?.dbPartyUpdate) {
+          try {
+            await window.electronAPI.dbPartyUpdate(currentParty.id, {
+              partyname: form.name ?? '',
+              partyaddress: form.address ?? '',
+              partyemail: form.email ?? '',
+              partycontact: form.contact ?? ''
+            });
+          } catch (error) {
+            console.error('Failed to update party:', error);
+          }
+        }
         setParties((prev) => prev.map((item, idx) => (idx === dialog.index ? { ...item, ...form } : item)));
       }
     }
     if (dialog.section === 'trucks') {
       if (dialog.mode === 'add') {
-        setTrucks((prev) => [...prev, { ...form, id: Date.now() }]);
+        let newId = Date.now();
+        if (window?.electronAPI?.dbTruckCreate) {
+          try {
+            const result = await window.electronAPI.dbTruckCreate({
+              trucknumber: form.truck ?? ''
+            });
+            if (result && result.id) {
+              newId = result.id;
+            }
+          } catch (error) {
+            console.error('Failed to create truck:', error);
+          }
+        }
+        setTrucks((prev) => [...prev, { ...form, id: newId }]);
       } else {
+        const currentTruck = trucks[dialog.index];
+        if (currentTruck?.id && window?.electronAPI?.dbTruckUpdate) {
+          try {
+            await window.electronAPI.dbTruckUpdate(currentTruck.id, {
+              trucknumber: form.truck ?? ''
+            });
+          } catch (error) {
+            console.error('Failed to update truck:', error);
+          }
+        }
         setTrucks((prev) => prev.map((item, idx) => (idx === dialog.index ? { ...item, ...form } : item)));
       }
     }
     if (dialog.section === 'drivers') {
       if (dialog.mode === 'add') {
-        setDrivers((prev) => [...prev, { ...form, id: Date.now() }]);
+        let newId = Date.now();
+        if (window?.electronAPI?.dbDriverCreate) {
+          try {
+            const result = await window.electronAPI.dbDriverCreate({
+              drivername: form.name ?? '',
+              drivercontact: form.contact ?? '',
+              driveraddress: form.address ?? ''
+            });
+            if (result && result.id) {
+              newId = result.id;
+            }
+          } catch (error) {
+            console.error('Failed to create driver:', error);
+          }
+        }
+        setDrivers((prev) => [...prev, { ...form, id: newId }]);
       } else {
+        const currentDriver = drivers[dialog.index];
+        if (currentDriver?.id && window?.electronAPI?.dbDriverUpdate) {
+          try {
+            await window.electronAPI.dbDriverUpdate(currentDriver.id, {
+              drivername: form.name ?? '',
+              drivercontact: form.contact ?? '',
+              driveraddress: form.address ?? ''
+            });
+          } catch (error) {
+            console.error('Failed to update driver:', error);
+          }
+        }
         setDrivers((prev) => prev.map((item, idx) => (idx === dialog.index ? { ...item, ...form } : item)));
       }
     }
     if (dialog.section === 'products') {
       if (dialog.mode === 'add') {
-        setProducts((prev) => [...prev, { ...form, id: Date.now() }]);
-      } else {
-        setProducts((prev) => prev.map((item, idx) => (idx === dialog.index ? { ...item, ...form } : item)));
+        let newId = Date.now();
+        if (window?.electronAPI?.dbProductCreate) {
+          try {
+            const result = await window.electronAPI.dbProductCreate({
+              productname: form.name ?? ''
+            });
+            if (result && result.id) {
+              newId = result.id;
+            }
+          } catch (error) {
+            console.error('Failed to create product:', error);
+          }
+        }
+        setProducts((prev) => [...prev, { ...form, id: newId }]);
       }
     }
     closeDialog();
@@ -221,21 +511,61 @@ function Management() {
     setDeleteDialog({ open: false, section: '', index: null });
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     const { section, index } = deleteDialog;
     if (section === 'users') {
+      const userToDelete = users[index];
+      if (userToDelete?.id && window?.electronAPI?.dbUserDelete) {
+        try {
+          await window.electronAPI.dbUserDelete(userToDelete.id);
+        } catch (error) {
+          console.error('Failed to delete user:', error);
+        }
+      }
       setUsers((prev) => prev.filter((_, idx) => idx !== index));
     }
     if (section === 'parties') {
+      const partyToDelete = parties[index];
+      if (partyToDelete?.id && window?.electronAPI?.dbPartyDelete) {
+        try {
+          await window.electronAPI.dbPartyDelete(partyToDelete.id);
+        } catch (error) {
+          console.error('Failed to delete party:', error);
+        }
+      }
       setParties((prev) => prev.filter((_, idx) => idx !== index));
     }
     if (section === 'trucks') {
+      const truckToDelete = trucks[index];
+      if (truckToDelete?.id && window?.electronAPI?.dbTruckDelete) {
+        try {
+          await window.electronAPI.dbTruckDelete(truckToDelete.id);
+        } catch (error) {
+          console.error('Failed to delete truck:', error);
+        }
+      }
       setTrucks((prev) => prev.filter((_, idx) => idx !== index));
     }
     if (section === 'drivers') {
+      const driverToDelete = drivers[index];
+      if (driverToDelete?.id && window?.electronAPI?.dbDriverDelete) {
+        try {
+          await window.electronAPI.dbDriverDelete(driverToDelete.id);
+        } catch (error) {
+          console.error('Failed to delete driver:', error);
+        }
+      }
       setDrivers((prev) => prev.filter((_, idx) => idx !== index));
     }
     if (section === 'products') {
+      const productToDelete = products[index];
+      if (productToDelete?.id && window?.electronAPI?.dbProductDelete) {
+        try {
+          await window.electronAPI.dbProductDelete(productToDelete.id);
+        } catch (error) {
+          console.error('Failed to delete product:', error);
+        }
+      }
       setProducts((prev) => prev.filter((_, idx) => idx !== index));
     }
     closeDeleteDialog();
@@ -385,6 +715,7 @@ function Management() {
                   <Divider sx={{ mb: 1.5 }} />
                   <InfoRow icon={<BusinessIcon fontSize="small" />} label="Name" value={company.name} />
                   <InfoRow icon={<RoomIcon fontSize="small" />} label="Address" value={company.address} />
+                  <InfoRow icon={<PhoneIcon fontSize="small" />} label="Contact" value={company.contact} />
                   <InfoRow icon={<GroupIcon fontSize="small" />} label="Total Users" value={`${company.users} users`} />
                 </CardContent>
               </SectionCard>
@@ -741,6 +1072,7 @@ function Management() {
             <Stack spacing={2} sx={{ mt: 1 }}>
               <TextField label="Company Name" value={form.name || ''} onChange={handleFormChange('name')} fullWidth />
               <TextField label="Company Address" value={form.address || ''} onChange={handleFormChange('address')} fullWidth />
+              <TextField label="Company Contact" value={form.contact || ''} onChange={handleFormChange('contact')} fullWidth />
               <TextField label="Company Logo (Initials)" value={form.logo || ''} onChange={handleFormChange('logo')} fullWidth />
               <TextField label="Total Users" value={form.users || ''} onChange={handleFormChange('users')} type="number" fullWidth />
             </Stack>
@@ -776,6 +1108,7 @@ function Management() {
               <TextField label="User Name" value={form.name || ''} onChange={handleFormChange('name')} fullWidth disabled={dialog.mode === 'preview'} />
               <TextField label="Contact" value={form.contact || ''} onChange={handleFormChange('contact')} fullWidth disabled={dialog.mode === 'preview'} />
               <TextField label="Email" value={form.email || ''} onChange={handleFormChange('email')} fullWidth disabled={dialog.mode === 'preview'} />
+              <TextField label="Password" type="password" value={form.password || ''} onChange={handleFormChange('password')} fullWidth disabled={dialog.mode === 'preview'} />
               <FormControl fullWidth disabled={dialog.mode === 'preview'}>
                 <InputLabel id="user-role-label">Role</InputLabel>
                 <Select
