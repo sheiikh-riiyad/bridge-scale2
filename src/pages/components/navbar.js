@@ -36,6 +36,13 @@ export default function Navbar() {
   const [anchorEl, setAnchorEl] = React.useState(null);
   const [mobileMoreAnchorEl, setMobileMoreAnchorEl] = React.useState(null);
   const [mobileOpen, setMobileOpen] = React.useState(false);
+  const [updateState, setUpdateState] = useState('idle');
+  const [updateInfo, setUpdateInfo] = useState(null);
+  const [updateError, setUpdateError] = useState(null);
+  const [updatePercent, setUpdatePercent] = useState(0);
+  const [updateMenuAnchorEl, setUpdateMenuAnchorEl] = useState(null);
+
+  const isUpdateMenuOpen = Boolean(updateMenuAnchorEl);
 
   const isMenuOpen = Boolean(anchorEl);
   const isMobileMenuOpen = Boolean(mobileMoreAnchorEl);
@@ -164,6 +171,56 @@ export default function Navbar() {
       return () => clearInterval(interval);
     }
   }, [decimalMode, handleScaleData]); // Add decimalMode and handleScaleData to dependencies
+
+  // Update handling
+  useEffect(() => {
+    if (!window.electronAPI || !window.electronAPI.onUpdateStatus) {
+      return;
+    }
+
+    window.electronAPI.onUpdateStatus((payload) => {
+      if (!payload || !payload.state) {
+        return;
+      }
+
+      setUpdateState(payload.state);
+      if (payload.state === 'available' || payload.state === 'downloaded') {
+        setUpdateInfo(payload.info || null);
+      }
+      if (payload.state === 'error') {
+        setUpdateError(payload.message || 'Update error');
+      }
+      if (payload.state === 'downloading') {
+        setUpdatePercent(Number(payload.percent || 0));
+      }
+    });
+  }, []);
+
+  const handleUpdateMenuOpen = (event) => {
+    setUpdateMenuAnchorEl(event.currentTarget);
+  };
+
+  const handleUpdateMenuClose = () => {
+    setUpdateMenuAnchorEl(null);
+  };
+
+  const handleCheckUpdates = async () => {
+    if (window.electronAPI?.checkForUpdates) {
+      await window.electronAPI.checkForUpdates();
+    }
+  };
+
+  const handleDownloadUpdate = async () => {
+    if (window.electronAPI?.downloadUpdate) {
+      await window.electronAPI.downloadUpdate();
+    }
+  };
+
+  const handleInstallUpdate = () => {
+    if (window.electronAPI?.quitAndInstallUpdate) {
+      window.electronAPI.quitAndInstallUpdate();
+    }
+  };
 
   // Navigation handlers
   const handleProfileMenuOpen = (event) => {
@@ -389,14 +446,14 @@ export default function Navbar() {
             variant="h6"
             noWrap
             component="div"
-            onClick={() => navigate('/')}
+            // onClick={() => navigate('/')}
             sx={{ 
               flexGrow: { xs: 1, md: 0 },
-              cursor: 'pointer',
+              // cursor: 'pointer',
               '&:hover': { opacity: 0.8 }
             }}
           >
-            Scale Dashboard
+            THE TERMINAL
           </Typography>
           
           {/* Desktop Navigation */}
@@ -577,15 +634,19 @@ export default function Navbar() {
                   <MailIcon />
                 </Badge>
               </IconButton>
-              {/* <IconButton
+              <IconButton
                 size="large"
-                aria-label="show 17 new notifications"
+                aria-label="show update notifications"
                 color="inherit"
+                onClick={handleUpdateMenuOpen}
               >
-                <Badge badgeContent={17} color="error">
+                <Badge
+                  variant={updateState === 'available' || updateState === 'downloaded' ? 'dot' : 'standard'}
+                  color="error"
+                >
                   <NotificationsIcon />
                 </Badge>
-              </IconButton> */}
+              </IconButton>
               {/* <IconButton
                 size="large"
                 edge="end"
@@ -637,6 +698,64 @@ export default function Navbar() {
       {/* Render menus */}
       {renderMobileMenu}
       {renderMenu}
+
+      <Menu
+        anchorEl={updateMenuAnchorEl}
+        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        open={isUpdateMenuOpen}
+        onClose={handleUpdateMenuClose}
+      >
+        <MenuItem disabled>
+          <Typography variant="subtitle2">App Updates</Typography>
+        </MenuItem>
+        <Divider />
+        {updateState === 'available' && (
+          <MenuItem disabled>
+            <Typography variant="body2">
+              Update available {updateInfo?.version ? `(${updateInfo.version})` : ''}
+            </Typography>
+          </MenuItem>
+        )}
+        {updateState === 'downloading' && (
+          <MenuItem disabled>
+            <Typography variant="body2">
+              Downloading... {updatePercent.toFixed(0)}%
+            </Typography>
+          </MenuItem>
+        )}
+        {updateState === 'downloaded' && (
+          <MenuItem disabled>
+            <Typography variant="body2">
+              Update downloaded. Restart to install.
+            </Typography>
+          </MenuItem>
+        )}
+        {updateState === 'none' && (
+          <MenuItem disabled>
+            <Typography variant="body2">No updates available.</Typography>
+          </MenuItem>
+        )}
+        {updateState === 'error' && (
+          <MenuItem disabled>
+            <Typography variant="body2">{updateError}</Typography>
+          </MenuItem>
+        )}
+
+        <MenuItem onClick={handleCheckUpdates}>
+          <Typography variant="body2">Check for updates</Typography>
+        </MenuItem>
+        {updateState === 'available' && (
+          <MenuItem onClick={handleDownloadUpdate}>
+            <Typography variant="body2">Download update</Typography>
+          </MenuItem>
+        )}
+        {updateState === 'downloaded' && (
+          <MenuItem onClick={handleInstallUpdate}>
+            <Typography variant="body2">Install & restart</Typography>
+          </MenuItem>
+        )}
+      </Menu>
     </Box>
   );
 }

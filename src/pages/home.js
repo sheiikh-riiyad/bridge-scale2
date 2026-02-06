@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Container,
   Typography,
@@ -288,6 +288,7 @@ function Home() {
     firstWeight: '',
     secondWeight: '',
     netWeight: '',
+    createdDate: new Date().toISOString().split('T')[0],
     date: new Date().toISOString().split('T')[0],
     time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     firstWeightDateTime: '',
@@ -298,11 +299,13 @@ function Home() {
   const [driverOptions, setDriverOptions] = useState([]);
   const [partyOptions, setPartyOptions] = useState([]);
   const [productOptions, setProductOptions] = useState([]);
+  const [packingTypeOptions, setPackingTypeOptions] = useState([]);
   const [truckMenuAnchor, setTruckMenuAnchor] = useState(null);
   const [driverMenuAnchor, setDriverMenuAnchor] = useState(null);
   const [sellerMenuAnchor, setSellerMenuAnchor] = useState(null);
   const [buyerMenuAnchor, setBuyerMenuAnchor] = useState(null);
   const [productMenuAnchor, setProductMenuAnchor] = useState(null);
+  const [packingTypeMenuAnchor, setPackingTypeMenuAnchor] = useState(null);
 
   const [entries, setEntries] = useState([]);
   const [editingIndex, setEditingIndex] = useState(null);
@@ -316,13 +319,16 @@ function Home() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedEntryId, setSelectedEntryId] = useState(null);
   const [liveTime, setLiveTime] = useState(new Date());
+  const [liveWeight, setLiveWeight] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
+  const [nextId, setNextId] = useState('—');
 
   const role = (currentUser?.role || '').toLowerCase();
-  const canDeleteTicket = role === 'admin' || role === 'super admin';
+  const canDeleteTicket = role === 'admin' || role === 'super admin' || role === 'manager';
   const canRemoveFirstWeight = role === 'admin' || role === 'super admin';
-  const canRemoveSecondWeight = role === 'admin' || role === 'super admin';
+  const canRemoveSecondWeight = role === 'admin' || role === 'super admin' || role === 'manager';
   const audioMapRef = useRef(null);
+  const lastSavedRef = useRef(null);
 
   const mapDbRowToEntry = (row) => ({
     id: row.id,
@@ -333,12 +339,14 @@ function Home() {
     productName: row.productname ?? '',
     userId: row.userid ?? null,
     userName: row.username ?? '',
+    printed: Number(row.printed) || 0,
     specification: row.specification ?? '',
     packingType: row.packingtype ?? '',
     fee: row.fee !== null && row.fee !== undefined ? String(row.fee) : '',
     firstWeight: row.firstweight !== null && row.firstweight !== undefined ? String(row.firstweight) : '',
     secondWeight: row.secondweight !== null && row.secondweight !== undefined ? String(row.secondweight) : '',
     netWeight: row.netweight !== null && row.netweight !== undefined ? String(row.netweight) : '',
+    createdDate: row.createdate ?? '',
     date: '',
     time: '',
     firstWeightDateTime: row.firstweightdate ?? '',
@@ -358,6 +366,7 @@ function Home() {
       productname: data.productName ?? null,
       userid: data.userId ?? null,
       username: data.userName ?? null,
+      printed: data.printed ?? 0,
       specification: data.specification ?? null,
       packingtype: data.packingType ?? null,
       fee: data.fee ?? null,
@@ -366,9 +375,28 @@ function Home() {
       secondweight: data.secondWeight ?? null,
       secondweightdate: data.secondWeightDateTime ?? null,
       netweight: data.netWeight ?? null,
+      createdate: data.createdDate ?? null,
       avarage: avg === null ? null : Math.round(avg)
     };
   };
+
+
+  const buildComparePayload = (data) => ({
+    driverName: data.driverName ?? '',
+    truckNumber: data.truckNumber ?? '',
+    sellerName: data.sellerName ?? '',
+    buyerName: data.buyerName ?? '',
+    productName: data.productName ?? '',
+    specification: data.specification ?? '',
+    packingType: data.packingType ?? '',
+    fee: data.fee ?? '',
+    firstWeight: data.firstWeight ?? '',
+    secondWeight: data.secondWeight ?? '',
+    netWeight: data.netWeight ?? '',
+    createdDate: data.createdDate ?? '',
+    firstWeightDateTime: data.firstWeightDateTime ?? '',
+    secondWeightDateTime: data.secondWeightDateTime ?? ''
+  });
 
   // Sample data for demonstration
   useEffect(() => {
@@ -427,7 +455,21 @@ function Home() {
     ];
 
     const loadEntries = async () => {
-      if (window?.electronAPI?.dbList) {
+      if (window?.electronAPI?.dbListUnprinted) {
+        try {
+          const rows = await window.electronAPI.dbListUnprinted();
+          if (Array.isArray(rows)) {
+            if (rows.length > 0) {
+              setEntries(rows.map(mapDbRowToEntry));
+              return;
+            }
+            setEntries([]);
+            return;
+          }
+        } catch (error) {
+          console.error('Failed to load unprinted DB entries:', error);
+        }
+      } else if (window?.electronAPI?.dbList) {
         try {
           const rows = await window.electronAPI.dbList();
           if (Array.isArray(rows)) {
@@ -472,6 +514,12 @@ function Home() {
             setProductOptions(products.map((p) => p.productname).filter(Boolean));
           }
         }
+        if (window?.electronAPI?.dbPackingTypeList) {
+          const types = await window.electronAPI.dbPackingTypeList();
+          if (Array.isArray(types)) {
+            setPackingTypeOptions(types.map((t) => t.packingtype).filter(Boolean));
+          }
+        }
       } catch (error) {
         console.error('Failed to load dropdown data:', error);
       }
@@ -513,6 +561,18 @@ function Home() {
   }, []);
 
   useEffect(() => {
+    if (window?.electronAPI?.onScaleData) {
+      try {
+        window.electronAPI.onScaleData((weight) => {
+          setLiveWeight(weight);
+        });
+      } catch (error) {
+        console.error('Failed to subscribe to scale data:', error);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
     const loadCurrentUser = async () => {
       if (window?.electronAPI?.currentUser) {
         try {
@@ -529,16 +589,47 @@ function Home() {
     loadCurrentUser();
   }, []);
 
+  const loadNextId = useCallback(async () => {
+    if (window?.electronAPI?.dbMaxId) {
+      try {
+        const res = await window.electronAPI.dbMaxId();
+        const maxId = res?.maxId ?? 0;
+        setNextId(Number(maxId) + 1);
+        return;
+      } catch (error) {
+        console.error('Failed to load next ID:', error);
+      }
+    }
+    const localMax = entries.length > 0 ? Math.max(...entries.map((entry) => Number(entry.id) || 0)) : 0;
+    setNextId(localMax + 1);
+  }, [entries]);
+
+  useEffect(() => {
+    loadNextId();
+  }, [loadNextId]);
+
+  const ensureCurrentUser = async () => {
+    if (currentUser) return currentUser;
+    if (window?.electronAPI?.currentUser) {
+      try {
+        const user = await window.electronAPI.currentUser();
+        if (user) {
+          setCurrentUser(user);
+          return user;
+        }
+      } catch (error) {
+        console.error('Failed to load current user:', error);
+      }
+    }
+    return null;
+  };
+
   const formattedLiveTime = liveTime.toLocaleTimeString('en-US', {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
     hour12: true
   });
-
-  const nextId = entries.length > 0
-    ? (Math.max(...entries.map((entry) => Number(entry.id) || 0)) + 1)
-    : 1;
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -574,41 +665,50 @@ function Home() {
   };
 
   const handleReadWeight = () => {
-    // Simulate reading weight from scale
-    const randomWeight = Math.floor(Math.random() * 50000) + 10000; // Random weight between 10,000 and 60,000 kg
+    const raw = typeof liveWeight === 'number' ? liveWeight : parseFloat(liveWeight);
+    if (!Number.isFinite(raw)) {
+      setSnackbar({
+        open: true,
+        message: 'No live weight data. Please ensure the scale is connected.',
+        severity: 'warning'
+      });
+      playAlertSound('warning');
+      return;
+    }
+
+    const weightValue = Math.abs(Number(raw.toFixed(2)));
     const now = new Date();
     const dateTimeString = now.toISOString().slice(0, 16); // Format: YYYY-MM-DDTHH:mm
-    
-    // Determine which field to fill based on which is empty
+
     if (!formData.firstWeight) {
       const nextNetWeight = formData.secondWeight
-        ? Math.abs(randomWeight - parseFloat(formData.secondWeight)).toFixed(2)
+        ? Math.abs(weightValue - parseFloat(formData.secondWeight)).toFixed(2)
         : '';
       setFormData(prev => ({
         ...prev,
-        firstWeight: randomWeight.toString(),
+        firstWeight: weightValue.toString(),
         firstWeightDateTime: dateTimeString,
         netWeight: nextNetWeight
       }));
       setSnackbar({
         open: true,
-        message: `First weight recorded: ${randomWeight} kg`,
+        message: `First weight recorded: ${weightValue} kg`,
         severity: 'success'
       });
       playAlertSound('success');
-    } else if (!formData.secondWeight) {
+    } else {
       const nextNetWeight = formData.firstWeight
-        ? Math.abs(parseFloat(formData.firstWeight) - randomWeight).toFixed(2)
+        ? Math.abs(parseFloat(formData.firstWeight) - weightValue).toFixed(2)
         : '';
       setFormData(prev => ({
         ...prev,
-        secondWeight: randomWeight.toString(),
+        secondWeight: weightValue.toString(),
         secondWeightDateTime: dateTimeString,
         netWeight: nextNetWeight
       }));
       setSnackbar({
         open: true,
-        message: `Second weight recorded: ${randomWeight} kg`,
+        message: `Second weight recorded: ${weightValue} kg`,
         severity: 'success'
       });
       playAlertSound('success');
@@ -616,6 +716,7 @@ function Home() {
   };
 
   const handleResetWeight = () => {
+    lastSavedRef.current = null;
     setFormData({
       driverName: '',
       truckNumber: '',
@@ -628,6 +729,7 @@ function Home() {
       firstWeight: '',
       secondWeight: '',
       netWeight: '',
+      createdDate: new Date().toISOString().split('T')[0],
       date: new Date().toISOString().split('T')[0],
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       firstWeightDateTime: '',
@@ -715,8 +817,12 @@ function Home() {
     // Auto-set date/time if not provided
     const now = new Date();
     const currentDateTime = now.toISOString().slice(0, 16);
+    const currentDate = now.toISOString().split('T')[0];
     
     const updatedFormData = { ...formData };
+    if (!updatedFormData.createdDate) {
+      updatedFormData.createdDate = currentDate;
+    }
     
     if (!updatedFormData.firstWeightDateTime && updatedFormData.firstWeight) {
       updatedFormData.firstWeightDateTime = currentDateTime;
@@ -726,13 +832,39 @@ function Home() {
       updatedFormData.secondWeightDateTime = currentDateTime;
     }
 
+    const activeUser = await ensureCurrentUser();
+    if (!activeUser) {
+      setSnackbar({
+        open: true,
+        message: 'User not found. Please log in again.',
+        severity: 'error'
+      });
+      playAlertSound('error');
+      return;
+    }
+
     const updatedFormDataWithUser = {
       ...updatedFormData,
-      userId: currentUser?.id ?? null,
-      userName: currentUser?.username ?? ''
+      userId: activeUser.id ?? null,
+      userName: activeUser.username ?? '',
+      printed: updatedFormData.printed ?? 0
     };
 
     const dbPayload = toDbPayload(updatedFormDataWithUser);
+
+    if (editingIndex === null) {
+      const currentSnapshot = buildComparePayload(updatedFormDataWithUser);
+      const lastSnapshot = lastSavedRef.current;
+      if (lastSnapshot && JSON.stringify(currentSnapshot) === JSON.stringify(lastSnapshot)) {
+        setSnackbar({
+          open: true,
+          message: 'No changes detected. Modify fields or use Reset before creating a new ticket.',
+          severity: 'warning'
+        });
+        playAlertSound('warning');
+        return;
+      }
+    }
 
     if (editingIndex !== null) {
       const updatedEntries = [...entries];
@@ -754,7 +886,7 @@ function Home() {
         }
       }
 
-      updatedEntries[editingIndex] = { ...updatedFormData, id: nextId };
+      updatedEntries[editingIndex] = { ...updatedFormDataWithUser, id: nextId };
       setEntries(updatedEntries);
       setSnackbar({
         open: true,
@@ -762,6 +894,7 @@ function Home() {
         severity: 'success'
       });
       playAlertSound('success');
+      lastSavedRef.current = buildComparePayload(updatedFormDataWithUser);
       setEditingIndex(null);
     } else {
       let newId = Date.now();
@@ -784,30 +917,15 @@ function Home() {
         }
       }
 
-      setEntries(prev => [...prev, { ...updatedFormData, id: newId }]);
+      setEntries(prev => [...prev, { ...updatedFormDataWithUser, id: newId }]);
+      setSelectedEntryId(newId);
+      lastSavedRef.current = buildComparePayload(updatedFormDataWithUser);
       setSnackbar({
         open: true,
         message: 'New weight ticket created successfully!',
         severity: 'success'
       });
       playAlertSound('success');
-      setFormData({
-        driverName: '',
-        truckNumber: '',
-        sellerName: '',
-        buyerName: '',
-        productName: '',
-        specification: '',
-        packingType: '',
-        fee: '',
-        firstWeight: '',
-        secondWeight: '',
-        netWeight: '',
-        date: new Date().toISOString().split('T')[0],
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        firstWeightDateTime: '',
-        secondWeightDateTime: ''
-      });
     }
   };
 
@@ -874,7 +992,8 @@ function Home() {
   const calculateStats = () => {
     const totalWeight = entries.reduce((sum, entry) => sum + (parseFloat(entry.netWeight) || 0), 0);
     const avgWeight = entries.length > 0 ? totalWeight / entries.length : 0;
-    const todayEntries = entries.filter(entry => entry.date === new Date().toISOString().split('T')[0]);
+    const todayKey = new Date().toISOString().split('T')[0];
+    const todayEntries = entries.filter(entry => (entry.createdDate || entry.date) === todayKey);
     
     return {
       totalWeight: totalWeight.toFixed(0) + ' kg',
@@ -885,6 +1004,8 @@ function Home() {
   };
 
   const stats = calculateStats();
+
+  const visibleEntries = entries;
 
   const toggleDrawer = (open) => (event) => {
     if (event.type === 'keydown' && (event.key === 'Tab' || event.key === 'Shift')) {
@@ -922,8 +1043,14 @@ function Home() {
     audio.play().catch(() => {});
   };
 
-  const handlePrint = () => {
-    const selectedEntry = entries.find((entry) => entry.id === selectedEntryId);
+  const handlePrint = async () => {
+    let selectedEntry = entries.find((entry) => entry.id === selectedEntryId);
+    if (!selectedEntry && entries.length > 0) {
+      selectedEntry = [...entries].sort((a, b) => Number(b.id) - Number(a.id))[0];
+      if (selectedEntry?.id !== undefined) {
+        setSelectedEntryId(selectedEntry.id);
+      }
+    }
     if (!selectedEntry) {
       setSnackbar({
         open: true,
@@ -947,6 +1074,57 @@ function Home() {
     const first = parseFloat(selectedEntry.firstWeight);
     const second = parseFloat(selectedEntry.secondWeight);
     const netWeight = selectedEntry.netWeight || (Number.isFinite(first) && Number.isFinite(second) ? Math.abs(first - second).toFixed(2) : '');
+
+    let companyInfo = { companyname: '', companyaddress: '', companycontact: '' };
+    try {
+      if (window?.electronAPI?.dbCompanyGet) {
+        const row = await window.electronAPI.dbCompanyGet();
+        if (row) {
+          companyInfo = row;
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load company info for print:', error);
+    }
+
+    const entryUserId = selectedEntry.userId ?? selectedEntry.userid ?? null;
+    let userInfo = null;
+    try {
+      if (window?.electronAPI?.dbUserGet && entryUserId) {
+        userInfo = await window.electronAPI.dbUserGet(Number(entryUserId));
+      }
+    } catch (error) {
+      console.error('Failed to load user info for print:', error);
+    }
+
+    const userIdSuffix = entryUserId ? ` (ID: ${entryUserId})` : '';
+    const baseUserName = userInfo?.username || selectedEntry.userName || '—';
+    const printUserName = baseUserName !== '—' ? `${baseUserName}${userIdSuffix}` : (entryUserId ? `User ID: ${entryUserId}` : '—');
+    const printUserContact = userInfo?.contact || '—';
+    const firstWeightTime = selectedEntry.firstWeightDateTime ? new Date(selectedEntry.firstWeightDateTime).toLocaleString() : '—';
+    const secondWeightTime = selectedEntry.secondWeightDateTime ? new Date(selectedEntry.secondWeightDateTime).toLocaleString() : '—';
+
+    if (window?.electronAPI?.dbUpdate && selectedEntry.id) {
+      try {
+        await window.electronAPI.dbUpdate(selectedEntry.id, {
+          ...toDbPayload(selectedEntry),
+          printed: 1
+        });
+      } catch (error) {
+        console.error('Failed to mark ticket as printed:', error);
+      }
+    }
+
+    if (window?.electronAPI?.dbListUnprinted) {
+      try {
+        const rows = await window.electronAPI.dbListUnprinted();
+        setEntries(Array.isArray(rows) ? rows.map(mapDbRowToEntry) : []);
+      } catch (error) {
+        console.error('Failed to reload unprinted tickets:', error);
+      }
+    }
+
+    setSelectedEntryId(null);
 
     const printWindow = window.open('', '_blank', 'width=900,height=700');
     if (!printWindow) {
@@ -1038,8 +1216,12 @@ function Home() {
         <body>
           <div class="sheet">
             <div class="header">
-              <div class="title">Weight Ticket</div>
-              <div class="meta">ID: ${escapeHtml(selectedEntry.id ?? '—')}</div>
+              <div>
+                <div class="title">${escapeHtml(companyInfo.companyname || 'Company')}</div>
+                <div class="meta">${escapeHtml(companyInfo.companyaddress || '')}</div>
+                <div class="meta">Contact: ${escapeHtml(companyInfo.companycontact || '—')}</div>
+              </div>
+              <div class="meta">Ticket ID: ${escapeHtml(selectedEntry.id ?? '—')}</div>
             </div>
             <div class="grid">
               <div class="row"><div class="label">Truck</div><div class="value">${escapeHtml(selectedEntry.truckNumber)}</div></div>
@@ -1048,6 +1230,10 @@ function Home() {
               <div class="row"><div class="label">Seller</div><div class="value">${escapeHtml(selectedEntry.sellerName)}</div></div>
               <div class="row"><div class="label">Product</div><div class="value">${escapeHtml(selectedEntry.productName)}</div></div>
               <div class="row"><div class="label">Spec</div><div class="value">${escapeHtml(selectedEntry.specification)}</div></div>
+              <div class="row"><div class="label">Created By</div><div class="value">${escapeHtml(printUserName)}</div></div>
+              <div class="row"><div class="label">User Contact</div><div class="value">${escapeHtml(printUserContact)}</div></div>
+              <div class="row"><div class="label">1st Time</div><div class="value">${escapeHtml(firstWeightTime)}</div></div>
+              <div class="row"><div class="label">2nd Time</div><div class="value">${escapeHtml(secondWeightTime)}</div></div>
             </div>
             <div class="weights">
               <div class="weight-box">
@@ -1115,7 +1301,7 @@ function Home() {
               Recent Tickets
             </Typography>
             <Typography variant="caption" sx={{ color: '#ffe0b2', fontSize: '0.7rem' }}>
-              {entries.length} records • {stats.totalWeight}
+              {visibleEntries.length} records • {stats.totalWeight}
             </Typography>
           </Box>
         </Box>
@@ -1128,7 +1314,7 @@ function Home() {
       </Box>
 
       <Box sx={{ flex: 1, overflow: 'auto', p: 1.5 }}>
-        {entries.length === 0 ? (
+        {visibleEntries.length === 0 ? (
           <Box sx={{ textAlign: 'center', py: 4 }}>
             <ScaleIcon sx={{ fontSize: 40, color: '#e0e0e0', mb: 1 }} />
             <Typography color="text.secondary" variant="body2">
@@ -1141,6 +1327,7 @@ function Home() {
               <TableHead>
                 <TableRow>
                   <TableCell sx={{ fontWeight: 'bold', fontSize: '0.75rem', p: 1 }}>ID</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.75rem', p: 1 }}>Created</TableCell>
                   <TableCell sx={{ fontWeight: 'bold', fontSize: '0.75rem', p: 1 }}>Truck</TableCell>
                   <TableCell sx={{ fontWeight: 'bold', fontSize: '0.75rem', p: 1 }}>Buyer</TableCell>
                   <TableCell sx={{ fontWeight: 'bold', fontSize: '0.75rem', p: 1 }}>Seller</TableCell>
@@ -1151,7 +1338,7 @@ function Home() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {entries.slice(0, 8).map((entry, index) => (
+                {visibleEntries.slice(0, 8).map((entry, index) => (
                   <TableRow 
                     key={entry.id}
                     hover
@@ -1164,6 +1351,7 @@ function Home() {
                     }}
                   >
                     <TableCell sx={{ p: 1 }}><Typography variant="body2" sx={{ fontSize: '0.75rem' }}>{entry.id ?? '—'}</Typography></TableCell>
+                    <TableCell sx={{ p: 1 }}><Typography variant="body2" sx={{ fontSize: '0.75rem' }}>{entry.createdDate || '—'}</Typography></TableCell>
                     <TableCell sx={{ p: 1 }}>
                       <Box>
                         <Typography variant="body2" fontWeight="medium" sx={{ fontSize: '0.8rem' }}>
@@ -1890,8 +2078,38 @@ function Home() {
                                         <DescriptionIcon fontSize="small" />
                                       </InputAdornment>
                                     ),
+                                    endAdornment: (
+                                      <InputAdornment position="end">
+                                        <IconButton
+                                          size="small"
+                                          onClick={(event) => setPackingTypeMenuAnchor(event.currentTarget)}
+                                        >
+                                          <ArrowDropDownIcon fontSize="small" />
+                                        </IconButton>
+                                      </InputAdornment>
+                                    )
                                   }}
                                 />
+                                <Menu
+                                  anchorEl={packingTypeMenuAnchor}
+                                  open={Boolean(packingTypeMenuAnchor)}
+                                  onClose={() => setPackingTypeMenuAnchor(null)}
+                                >
+                                  {packingTypeOptions.length === 0 && (
+                                    <MenuItem disabled>No packing types</MenuItem>
+                                  )}
+                                  {packingTypeOptions.map((name) => (
+                                    <MenuItem
+                                      key={name}
+                                      onClick={() => {
+                                        setFormData((prev) => ({ ...prev, packingType: name }));
+                                        setPackingTypeMenuAnchor(null);
+                                      }}
+                                    >
+                                      {name}
+                                    </MenuItem>
+                                  ))}
+                                </Menu>
                               </Grid>
                               <Grid item xs={12}>
                                 <DataField
@@ -1965,6 +2183,7 @@ function Home() {
                                   onWheel={(e) => e.target.blur()}
                                   size="small"
                                   InputProps={{
+                                    readOnly: true,
                                     endAdornment: <InputAdornment position="end" sx={{ fontSize: '0.75rem' }}>kg</InputAdornment>,
                                   }}
                                 />
@@ -1982,6 +2201,7 @@ function Home() {
                                   onWheel={(e) => e.target.blur()}
                                   size="small"
                                   InputProps={{
+                                    readOnly: true,
                                     endAdornment: <InputAdornment position="end" sx={{ fontSize: '0.75rem' }}>kg</InputAdornment>,
                                   }}
                                 />

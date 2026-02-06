@@ -217,12 +217,31 @@ function Management() {
       }
     };
 
+    const loadPackingTypes = async () => {
+      if (window?.electronAPI?.dbPackingTypeList) {
+        try {
+          const rows = await window.electronAPI.dbPackingTypeList();
+          if (Array.isArray(rows)) {
+            if (rows.length > 0) {
+              setPackingTypes(rows.map(mapDbPackingTypeToState));
+              return;
+            }
+            setPackingTypes([]);
+            return;
+          }
+        } catch (error) {
+          console.error('Failed to load packing types:', error);
+        }
+      }
+    };
+
     loadCompany();
     loadUsers();
     loadProducts();
     loadParties();
     loadTrucks();
     loadDrivers();
+    loadPackingTypes();
     loadCurrentUser();
   }, []);
 
@@ -238,11 +257,12 @@ function Management() {
     ? (owner.photo.startsWith('data:') ? owner.photo : `data:image/png;base64,${owner.photo}`)
     : '';
 
-  const role = (owner?.role || '').toLowerCase();
+  const role = (owner?.role || '').toLowerCase().trim();
+  const roleKey = role.replace(/s|_/g, '');
   const isUser = role === 'user';
   const isManager = role === 'manager';
   const isAdmin = role === 'admin';
-  const isSuperAdmin = role === 'super admin';
+  const isSuperAdmin = role === 'super admin' || roleKey === 'superadmin';
 
   const canUpdateCompany = isUser || isManager || isAdmin || isSuperAdmin;
   const canAddUser = isAdmin || isSuperAdmin;
@@ -317,6 +337,16 @@ function Management() {
     name: row.productname ?? ''
   });
 
+  const [packingTypes, setPackingTypes] = useState([
+    { id: 1, name: 'Bag' },
+    { id: 2, name: 'Bundle' }
+  ]);
+
+  const mapDbPackingTypeToState = (row) => ({
+    id: row.id,
+    name: row.packingtype ?? ''
+  });
+
   const [dialog, setDialog] = useState({ open: false, section: '', mode: 'add', index: null });
   const [form, setForm] = useState({});
   const [deleteDialog, setDeleteDialog] = useState({ open: false, section: '', index: null });
@@ -337,6 +367,8 @@ function Management() {
       nextForm = index !== null ? { ...drivers[index] } : { name: '', address: '', contact: '' };
     } else if (section === 'products') {
       nextForm = index !== null ? { ...products[index] } : { name: '' };
+    } else if (section === 'packingtypes') {
+      nextForm = index !== null ? { ...packingTypes[index] } : { name: '' };
     }
     setForm(nextForm);
     setDialog({ open: true, section, mode, index });
@@ -367,6 +399,12 @@ function Management() {
     if (dialog.section === 'users' && dialog.mode === 'add' && !canAddUser) return;
     if (dialog.section === 'users' && dialog.mode !== 'add' && !canUpdateUser) return;
     if (dialog.section === 'products' && !canAddEntities) return;
+    if (dialog.section === 'packingtypes' && dialog.mode === 'add') {
+      // all roles allowed
+    }
+    if (dialog.section === 'packingtypes' && dialog.mode !== 'add') {
+      // all roles allowed
+    }
     if (dialog.section === 'parties' && dialog.mode === 'add' && !canAddEntities) return;
     if (dialog.section === 'parties' && dialog.mode !== 'add' && !canUpdateEntities) return;
     if (dialog.section === 'trucks' && dialog.mode === 'add' && !canAddEntities) return;
@@ -552,6 +590,53 @@ function Management() {
         setProducts((prev) => [...prev, { ...form, id: newId }]);
       }
     }
+    if (dialog.section === 'packingtypes') {
+      if (dialog.mode === 'add') {
+        let newId = Date.now();
+        if (window?.electronAPI?.dbPackingTypeCreate) {
+          try {
+            const result = await window.electronAPI.dbPackingTypeCreate({
+              packingtype: form.name ?? ''
+            });
+            if (result && result.id) {
+              newId = result.id;
+            }
+          } catch (error) {
+            console.error('Failed to create packing type:', error);
+          }
+        }
+        setPackingTypes((prev) => [...prev, { ...form, id: newId }]);
+        if (window?.electronAPI?.dbPackingTypeList) {
+          try {
+            const rows = await window.electronAPI.dbPackingTypeList();
+            setPackingTypes(Array.isArray(rows) ? rows.map(mapDbPackingTypeToState) : []);
+          } catch (error) {
+            console.error('Failed to reload packing types:', error);
+          }
+        }
+      } else {
+        const currentType = packingTypes[dialog.index];
+        if (currentType?.id && window?.electronAPI?.dbPackingTypeUpdate) {
+          try {
+            await window.electronAPI.dbPackingTypeUpdate(currentType.id, {
+              packingtype: form.name ?? ''
+            });
+          } catch (error) {
+            console.error('Failed to update packing type:', error);
+          }
+        }
+        setPackingTypes((prev) => prev.map((item, idx) => (idx === dialog.index ? { ...item, ...form } : item)));
+        if (window?.electronAPI?.dbPackingTypeList) {
+          try {
+            const rows = await window.electronAPI.dbPackingTypeList();
+            setPackingTypes(Array.isArray(rows) ? rows.map(mapDbPackingTypeToState) : []);
+          } catch (error) {
+            console.error('Failed to reload packing types:', error);
+          }
+        }
+      }
+    }
+
     closeDialog();
   };
 
@@ -567,6 +652,9 @@ function Management() {
     const { section, index } = deleteDialog;
     if (section === 'users' && !canDeleteUser) return;
     if (section === 'products' && !canDeleteEntities) return;
+    if (section === 'packingtypes') {
+      // all roles allowed
+    }
     if (section === 'parties' && !canDeleteEntities) return;
     if (section === 'trucks' && !canDeleteEntities) return;
     if (section === 'drivers' && !canDeleteEntities) return;
@@ -624,6 +712,25 @@ function Management() {
         }
       }
       setProducts((prev) => prev.filter((_, idx) => idx !== index));
+    }
+    if (section === 'packingtypes') {
+      const typeToDelete = packingTypes[index];
+      if (typeToDelete?.id && window?.electronAPI?.dbPackingTypeDelete) {
+        try {
+          await window.electronAPI.dbPackingTypeDelete(typeToDelete.id);
+        } catch (error) {
+          console.error('Failed to delete packing type:', error);
+        }
+      }
+      setPackingTypes((prev) => prev.filter((_, idx) => idx !== index));
+      if (window?.electronAPI?.dbPackingTypeList) {
+        try {
+          const rows = await window.electronAPI.dbPackingTypeList();
+          setPackingTypes(Array.isArray(rows) ? rows.map(mapDbPackingTypeToState) : []);
+        } catch (error) {
+          console.error('Failed to reload packing types:', error);
+        }
+      }
     }
     closeDeleteDialog();
   };
@@ -911,7 +1018,46 @@ function Management() {
                         sx={{ bgcolor: '#f1f5f9' }}
                         onDelete={!canDeleteEntities ? undefined : () => openDeleteDialog('products', index)}
                         deleteIcon={<DeleteIcon />}
-                        onClick={() => openDialog('products', 'edit', index)}
+                        onClick={() => { if (!canUpdateEntities) return; openDialog('products', 'edit', index); }}
+                      />
+                    ))}
+                  </Stack>
+                </CardContent>
+              </SectionCard>
+            </Grid>
+            <Grid item xs={12} md={5}>
+              <SectionCard>
+                <CardContent>
+                  <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 1.5 }}>
+                    <Inventory2Icon sx={{ color: '#14b8a6' }} />
+                    <Box>
+                      <Typography variant="subtitle1" fontWeight={700} sx={{ color: '#0f172a' }}>
+                        Packing Types
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: '#64748b' }}>
+                        Packaging options
+                      </Typography>
+                    </Box>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={<AddIcon />}
+                      sx={{ ml: 'auto' }}
+                      onClick={() => openDialog('packingtypes', 'add')}
+                    >
+                      Add Packing
+                    </Button>
+                  </Stack>
+                  <Divider sx={{ mb: 1.5 }} />
+                  <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                    {packingTypes.map((item, index) => (
+                      <Chip
+                        key={item.id}
+                        label={item.name}
+                        sx={{ bgcolor: '#ecfeff' }}
+                        onClick={() => openDialog('packingtypes', 'edit', index)}
+                        onDelete={() => openDeleteDialog('packingtypes', index)}
+                        deleteIcon={<DeleteIcon />}
                       />
                     ))}
                   </Stack>
@@ -1209,6 +1355,11 @@ function Management() {
           {dialog.section === 'products' && (
             <Stack spacing={2} sx={{ mt: 1 }}>
               <TextField label="Product Name" value={form.name || ''} onChange={handleFormChange('name')} fullWidth />
+            </Stack>
+          )}
+          {dialog.section === 'packingtypes' && (
+            <Stack spacing={2} sx={{ mt: 1 }}>
+              <TextField label="Packing Type" value={form.name || ''} onChange={handleFormChange('name')} fullWidth />
             </Stack>
           )}
         </DialogContent>
