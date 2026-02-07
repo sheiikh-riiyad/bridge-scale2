@@ -26,7 +26,7 @@ import TerminalIcon from '@mui/icons-material/Terminal';
 import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
 import SwipeableDrawer from '@mui/material/SwipeableDrawer';
 import { useEffect, useState, useCallback } from 'react';
-import ScaleIcon from '@mui/icons-material/Scale';
+
 
 export default function Navbar() {
   const [weight, setWeight] = useState('0.00');
@@ -48,19 +48,7 @@ export default function Navbar() {
   const isMobileMenuOpen = Boolean(mobileMoreAnchorEl);
 
   // Scale functions
-  const startScale = async () => {
-    if (window.electronAPI) {
-      try {
-        setScaleStatus('connecting');
-        const result = await window.electronAPI.startScale();
-        console.log('Scale auto result:', result);
-        setScaleStatus('connected');
-      } catch (error) {
-        console.error('Failed to start scale:', error);
-        setScaleStatus('error');
-      }
-    }
-  };
+  
 
   const startScale2Dec = async () => {
     if (window.electronAPI) {
@@ -77,44 +65,11 @@ export default function Navbar() {
     }
   };
 
-  const startScale3Dec = async () => {
-    if (window.electronAPI) {
-      try {
-        setScaleStatus('connecting');
-        const result = await window.electronAPI.startScale3Dec();
-        console.log('Scale 3dec result:', result);
-        setDecimalMode(3);
-        setScaleStatus('connected');
-      } catch (error) {
-        console.error('Failed to start scale 3dec:', error);
-        setScaleStatus('error');
-      }
-    }
-  };
+  
 
-  const testDecimalMode = async () => {
-    if (window.electronAPI) {
-      try {
-        const result = await window.electronAPI.testDecimalMode();
-        console.log('Test result:', result);
-      } catch (error) {
-        console.error('Test failed:', error);
-      }
-    }
-  };
+  
 
-  const stopScale = async () => {
-    if (window.electronAPI) {
-      try {
-        const result = await window.electronAPI.stopScale();
-        console.log('Scale stop result:', result);
-        setScaleStatus('disconnected');
-        setWeight('0.00');
-      } catch (error) {
-        console.error('Failed to stop scale:', error);
-      }
-    }
-  };
+ 
 
   // Create a stable reference to the scale data handler
   const handleScaleData = useCallback((data) => {
@@ -368,38 +323,6 @@ export default function Navbar() {
           <ListItemText primary="Management" />
         </ListItem>
       </List>
-      <Divider />
-      <List>
-        <ListItem>
-          <Typography variant="subtitle2" sx={{ pl: 2, color: 'text.secondary' }}>
-            Scale Control
-          </Typography>
-        </ListItem>
-        <ListItem button onClick={startScale2Dec}>
-          <ListItemIcon>
-            <ScaleIcon />
-          </ListItemIcon>
-          <ListItemText primary="Start (2 decimals)" />
-        </ListItem>
-        <ListItem button onClick={startScale3Dec}>
-          <ListItemIcon>
-            <ScaleIcon />
-          </ListItemIcon>
-          <ListItemText primary="Start (3 decimals)" />
-        </ListItem>
-        <ListItem button onClick={testDecimalMode}>
-          <ListItemIcon>
-            <ScaleIcon />
-          </ListItemIcon>
-          <ListItemText primary="Test Mode" />
-        </ListItem>
-        <ListItem button onClick={stopScale}>
-          <ListItemIcon>
-            <ScaleIcon />
-          </ListItemIcon>
-          <ListItemText primary="Stop Scale" />
-        </ListItem>
-      </List>
     </Box>
   );
 
@@ -415,15 +338,7 @@ export default function Navbar() {
   };
 
   // Status text mapping
-  const getStatusText = () => {
-    switch (scaleStatus) {
-      case 'connected': return '⚡ LIVE';
-      case 'connecting': return '🔌 CONNECTING';
-      case 'error': return '❌ ERROR';
-      case 'simulated': return '🎭 SIMULATED';
-      default: return '📴 DISCONNECTED';
-    }
-  };
+ 
 
   return (
     <Box sx={{ flexGrow: 1 }}>
@@ -501,10 +416,10 @@ export default function Navbar() {
             display: 'flex', 
             alignItems: 'center', 
             mr: 2,
-            backgroundColor: 'rgba(0, 0, 0, 0.1)',
-            borderRadius: 2,
-            px: 2,
-            py: 1
+            
+            
+            
+            
           }}>
             {/* Weight Display */}
             <Box
@@ -512,7 +427,7 @@ export default function Navbar() {
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                mr: 2
+                
               }}
             >
               <Typography 
@@ -524,105 +439,28 @@ export default function Navbar() {
                   fontWeight: 'bold'
                 }}
               >
-                {getStatusText()}
+                {/* {getStatusText()} */}
               </Typography>
               <Box
                 sx={{
-                  px: 2,
-                  py: 0.5,
-                  borderRadius: 2,
-                  backgroundColor: 'rgba(255, 255, 255, 0.15)',
-                  border: `1px solid ${getStatusColor()}50`,
-                  fontWeight: 'bold',
-                  minWidth: 120,
+                 
+                  
+                  borderRadius: 2.5,
+                  backgroundColor: 'rgba(247, 241, 238, 0.18)',
+                  border: `2px solid`,
+                  fontWeight: 1000,
+                  minWidth: 200,
                   textAlign: 'center',
-                  color: getStatusColor(),
-                  fontSize: '1.2rem',
-                  letterSpacing: '0.5px'
+                  color: "black",
+                  fontSize: '50px',
+                  letterSpacing: '1px',
+                  boxShadow: `0 0 18px `
                 }}
               >
                 {weight} kg
               </Box>
-              <Typography variant="caption" sx={{ fontSize: '0.6rem', mt: 0.5, opacity: 0.7 }}>
-                {decimalMode} decimal{decimalMode !== 1 ? 's' : ''}
-              </Typography>
             </Box>
             
-            {/* Scale Control Buttons */}
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-              <Box sx={{ display: 'flex', gap: 0.5 }}>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={startScale2Dec}
-                  sx={{ 
-                    color: decimalMode === 2 ? '#4caf50' : 'white',
-                    borderColor: decimalMode === 2 ? '#4caf50' : 'rgba(255,255,255,0.5)',
-                    fontSize: '0.7rem',
-                    minWidth: 'auto',
-                    px: 1,
-                    '&:hover': {
-                      borderColor: decimalMode === 2 ? '#4caf50' : 'white'
-                    }
-                  }}
-                >
-                  2 Dec
-                </Button>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={startScale3Dec}
-                  sx={{ 
-                    color: decimalMode === 3 ? '#4caf50' : 'white',
-                    borderColor: decimalMode === 3 ? '#4caf50' : 'rgba(255,255,255,0.5)',
-                    fontSize: '0.7rem',
-                    minWidth: 'auto',
-                    px: 1,
-                    '&:hover': {
-                      borderColor: decimalMode === 3 ? '#4caf50' : 'white'
-                    }
-                  }}
-                >
-                  3 Dec
-                </Button>
-              </Box>
-              <Box sx={{ display: 'flex', gap: 0.5 }}>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={startScale}
-                  sx={{ 
-                    color: 'white',
-                    borderColor: 'rgba(255,255,255,0.5)',
-                    fontSize: '0.7rem',
-                    minWidth: 'auto',
-                    px: 1,
-                    '&:hover': {
-                      borderColor: 'white'
-                    }
-                  }}
-                >
-                  Auto
-                </Button>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={stopScale}
-                  sx={{ 
-                    color: 'white',
-                    borderColor: 'rgba(255,255,255,0.5)',
-                    fontSize: '0.7rem',
-                    minWidth: 'auto',
-                    px: 1,
-                    '&:hover': {
-                      borderColor: 'white'
-                    }
-                  }}
-                >
-                  Stop
-                </Button>
-              </Box>
-            </Box>
           </Box>
           
           {/* Right side icons and menus */}
