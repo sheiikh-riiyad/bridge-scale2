@@ -13,7 +13,7 @@ function App() {
         {/* Navbar will be visible on all pages */}
         <Navbar/>
         <Routes>
-          <Route path="./" element={<Home />} />
+          <Route path="/" element={<Home />} />
           <Route path="/home" element={<Home />} />
           <Route path="/settings" element={<Setting />} />
           <Route path="/console" element={<Console />} />
@@ -22,8 +22,8 @@ function App() {
           {/* Optional: 404 page for unknown routes */}
           <Route path="*" element={
             <div style={{ padding: '20px', textAlign: 'center' }}>
-              <h2>404 - Page Not Found</h2>
-              <p>The page you are looking for does not exist.</p>
+              <h1>WELCOME TO THE TERMINAL</h1>
+              <p>The Product Of <a target='_blank' href='appdevloper.com'>Appdevloper</a> </p>
             </div>
           } />
         </Routes>
