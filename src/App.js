@@ -13,7 +13,7 @@ function App() {
         {/* Navbar will be visible on all pages */}
         <Navbar/>
         <Routes>
-          <Route path="/" element={<Home />} />
+          <Route path="./" element={<Home />} />
           <Route path="/home" element={<Home />} />
           <Route path="/settings" element={<Setting />} />
           <Route path="/console" element={<Console />} />

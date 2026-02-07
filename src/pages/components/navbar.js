@@ -381,7 +381,7 @@ export default function Navbar() {
               color="inherit" 
               sx={{ mx: 1 }}
               startIcon={<HomeIcon />}
-              onClick={() => navigate('/')}
+              onClick={() => navigate('./')}
             >
               Home
             </Button>
