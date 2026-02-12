@@ -2279,6 +2279,7 @@ function Home() {
                                     onChange={handleChange}
                                     size="small"
                                     InputProps={{
+                                      readOnly: true,
                                       startAdornment: (
                                         <InputAdornment position="start">
                                           <EventIcon fontSize="small" />
@@ -2307,6 +2308,7 @@ function Home() {
                                     onChange={handleChange}
                                     size="small"
                                     InputProps={{
+                                      readOnly: true,
                                       startAdornment: (
                                         <InputAdornment position="start">
                                           <AccessTimeIcon fontSize="small" />

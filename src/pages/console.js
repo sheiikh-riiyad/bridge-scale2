@@ -15,11 +15,30 @@ import {
   Paper,
   Button,
   Grid,
-  TextField
+  TextField,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from '@mui/material';
 
 function Console() {
   const [rows, setRows] = useState([]);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editingRowId, setEditingRowId] = useState(null);
+  const [editForm, setEditForm] = useState({
+    trucknumber: '',
+    drivername: '',
+    sellername: '',
+    buyername: '',
+    productname: '',
+    specification: '',
+    fee: '',
+    firstweight: '',
+    secondweight: '',
+    netweight: ''
+  });
   const [filters, setFilters] = useState({
     id: '',
     driver: '',
@@ -50,6 +69,26 @@ function Console() {
 
     loadPrinted();
   }, []);
+
+  useEffect(() => {
+    const loadCurrentUser = async () => {
+      if (window?.electronAPI?.currentUser) {
+        try {
+          const user = await window.electronAPI.currentUser();
+          if (user) {
+            setCurrentUser(user);
+          }
+        } catch (error) {
+          console.error('Failed to load current user:', error);
+        }
+      }
+    };
+
+    loadCurrentUser();
+  }, []);
+
+  const role = String(currentUser?.role || '').toLowerCase();
+  const canDeletePrintedTicket = role === 'super admin';
 
   const formatDateTime = (value) => {
     if (!value) return '—';
@@ -249,6 +288,118 @@ function Console() {
     XLSX.writeFile(workbook, `printed-tickets-${stamp}.xlsx`);
   };
 
+  const handleDelete = async (row) => {
+    if (!canDeletePrintedTicket) return;
+    if (!window.confirm(`Delete ticket ID ${row?.id ?? ''}?`)) return;
+
+    if (window?.electronAPI?.dbDelete && row?.id) {
+      try {
+        await window.electronAPI.dbDelete(row.id);
+      } catch (error) {
+        console.error('Failed to delete ticket:', error);
+      }
+    }
+
+    if (window?.electronAPI?.dbListPrinted) {
+      try {
+        const data = await window.electronAPI.dbListPrinted();
+        setRows(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error('Failed to reload printed tickets:', error);
+      }
+    }
+  };
+
+  const toNullable = (value) => {
+    const text = String(value ?? '').trim();
+    return text === '' ? null : text;
+  };
+
+  const handleEdit = (row) => {
+    if (!canDeletePrintedTicket) return;
+    if (!row?.id) return;
+    setEditingRowId(row.id);
+    setEditForm({
+      trucknumber: String(row.trucknumber ?? ''),
+      drivername: String(row.drivername ?? ''),
+      sellername: String(row.sellername ?? ''),
+      buyername: String(row.buyername ?? ''),
+      productname: String(row.productname ?? ''),
+      specification: String(row.specification ?? ''),
+      fee: String(row.fee ?? ''),
+      firstweight: String(row.firstweight ?? ''),
+      secondweight: String(row.secondweight ?? ''),
+      netweight: String(row.netweight ?? '')
+    });
+    setEditOpen(true);
+  };
+
+  const handleEditFieldChange = (event) => {
+    const { name, value } = event.target;
+    setEditForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const closeEditModal = () => {
+    setEditOpen(false);
+    setEditingRowId(null);
+  };
+
+  const saveEdit = async () => {
+    if (!canDeletePrintedTicket) return;
+    if (!window?.electronAPI?.dbUpdate || !editingRowId) return;
+
+    const row = rows.find((item) => Number(item.id) === Number(editingRowId));
+    if (!row) {
+      closeEditModal();
+      return;
+    }
+
+    const net = Number.parseFloat(editForm.netweight);
+    const spec = Number.parseFloat(editForm.specification);
+    const average = Number.isFinite(net) && Number.isFinite(spec) && spec !== 0
+      ? Math.round(net / spec)
+      : null;
+
+    const payload = {
+      drivername: toNullable(editForm.drivername),
+      trucknumber: toNullable(editForm.trucknumber),
+      sellername: toNullable(editForm.sellername),
+      buyername: toNullable(editForm.buyername),
+      productname: toNullable(editForm.productname),
+      userid: row.userid ?? null,
+      username: row.username ?? null,
+      printed: 1,
+      specification: toNullable(editForm.specification),
+      packingtype: row.packingtype ?? null,
+      fee: toNullable(editForm.fee),
+      firstweight: toNullable(editForm.firstweight),
+      firstweightdate: row.firstweightdate ?? null,
+      secondweight: toNullable(editForm.secondweight),
+      secondweightdate: row.secondweightdate ?? null,
+      netweight: toNullable(editForm.netweight),
+      createdate: row.createdate ?? null,
+      avarage: average
+    };
+
+    try {
+      await window.electronAPI.dbUpdate(editingRowId, payload);
+    } catch (error) {
+      console.error('Failed to update ticket:', error);
+      return;
+    }
+
+    if (window?.electronAPI?.dbListPrinted) {
+      try {
+        const data = await window.electronAPI.dbListPrinted();
+        setRows(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error('Failed to reload printed tickets:', error);
+      }
+    }
+
+    closeEditModal();
+  };
+
   return (
     <Container maxWidth={false} sx={{ py: 3, maxWidth: '100%' }}>
       <Card sx={{ borderRadius: 2 }}>
@@ -335,7 +486,7 @@ function Console() {
                     <TableCell>1st Time</TableCell>
                     <TableCell>2nd Time</TableCell>
                     <TableCell>Created By</TableCell>
-                    <TableCell align="right">Print</TableCell>
+                    <TableCell align="right">Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -360,6 +511,28 @@ function Console() {
                         <Button size="small" variant="outlined" onClick={() => handlePrint(row)}>
                           Print
                         </Button>
+                        {canDeletePrintedTicket && (
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            color="primary"
+                            onClick={() => handleEdit(row)}
+                            sx={{ ml: 1 }}
+                          >
+                            Edit
+                          </Button>
+                        )}
+                        {canDeletePrintedTicket && (
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            color="error"
+                            onClick={() => handleDelete(row)}
+                            sx={{ ml: 1 }}
+                          >
+                            Delete
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -369,6 +542,47 @@ function Console() {
           )}
         </CardContent>
       </Card>
+      <Dialog open={editOpen} onClose={closeEditModal} fullWidth maxWidth="md">
+        <DialogTitle>Edit Ticket {editingRowId ? `#${editingRowId}` : ''}</DialogTitle>
+        <DialogContent>
+          <Grid container spacing={1.5} sx={{ mt: 0.5 }}>
+            <Grid item xs={12} sm={6}>
+              <TextField fullWidth size="small" label="Truck Number" name="trucknumber" value={editForm.trucknumber} onChange={handleEditFieldChange} />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField fullWidth size="small" label="Driver Name" name="drivername" value={editForm.drivername} onChange={handleEditFieldChange} />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField fullWidth size="small" label="Seller Name" name="sellername" value={editForm.sellername} onChange={handleEditFieldChange} />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField fullWidth size="small" label="Buyer Name" name="buyername" value={editForm.buyername} onChange={handleEditFieldChange} />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField fullWidth size="small" label="Product Name" name="productname" value={editForm.productname} onChange={handleEditFieldChange} />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField fullWidth size="small" label="Specification" name="specification" value={editForm.specification} onChange={handleEditFieldChange} />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField fullWidth size="small" label="Fee" name="fee" value={editForm.fee} onChange={handleEditFieldChange} />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField fullWidth size="small" label="First Weight" name="firstweight" value={editForm.firstweight} onChange={handleEditFieldChange} />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField fullWidth size="small" label="Second Weight" name="secondweight" value={editForm.secondweight} onChange={handleEditFieldChange} />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField fullWidth size="small" label="Net Weight" name="netweight" value={editForm.netweight} onChange={handleEditFieldChange} />
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeEditModal}>Cancel</Button>
+          <Button onClick={saveEdit} variant="contained">Save</Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 }
