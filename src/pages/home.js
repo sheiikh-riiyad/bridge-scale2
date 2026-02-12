@@ -201,7 +201,7 @@ const HeaderStatCard = styled(Paper)(({ theme }) => ({
   border: '1px solid rgba(255,255,255,0.5)',
   boxShadow: '0 12px 30px rgba(15, 23, 42, 0.12)',
   backdropFilter: 'blur(8px)',
-  transition: 'transform 0.2s ease-in-out',
+  
   height: '100%',
   display: 'flex',
   alignItems: 'center',
@@ -239,7 +239,7 @@ const WeightScaleButton = styled(IconButton)(({ theme }) => ({
   }
 }));
 
-const Reveal = ({ children, delay = 0 }) => {
+const Reveal = ({ children,  }) => {
   const ref = useRef(null);
   const [visible, setVisible] = useState(false);
 
@@ -266,7 +266,7 @@ const Reveal = ({ children, delay = 0 }) => {
         opacity: visible ? 1 : 0,
         transform: visible ? 'translateY(0) scale(1)' : 'translateY(16px) scale(0.98)',
         filter: visible ? 'blur(0px)' : 'blur(2px)',
-        transition: `opacity 650ms cubic-bezier(0.22, 1, 0.36, 1) ${delay}ms, transform 650ms cubic-bezier(0.22, 1, 0.36, 1) ${delay}ms, filter 650ms ease ${delay}ms`,
+      
         willChange: 'opacity, transform, filter'
       }}
     >
@@ -1144,7 +1144,7 @@ function Home() {
           <meta charset="utf-8" />
           <title>Weight Ticket - ${escapeHtml(selectedEntry.id ?? '')}</title>
           <style>
-            @page { size: 8.3in 3.9in; margin: 0.3in; }
+            @page { size: A4 portrait; margin: 0.3in; }
             * { box-sizing: border-box; }
             body {
               margin: 0;
@@ -1152,8 +1152,8 @@ function Home() {
               color: #111;
             }
             .sheet {
-              width: 8.3in;
-              height: 3.9in;
+              width: 8.27in;
+              height: 11.69in;
               padding: 0.2in;
               border: 1px solid #ccc;
             }
@@ -1169,7 +1169,7 @@ function Home() {
             }
             .meta {
               font-size: 12px;
-              color: #444;
+              color: #000000;
             }
             .grid {
               display: grid;
@@ -1183,7 +1183,7 @@ function Home() {
             }
             .label {
               min-width: 1.1in;
-              color: #555;
+              color: #000000;
               font-weight: 600;
             }
             .value {
@@ -1204,13 +1204,16 @@ function Home() {
             }
             .weight-title {
               font-size: 11px;
-              color: #666;
+              color: #000000;
               margin-bottom: 0.04in;
             }
             .weight-value {
               font-size: 15px;
               font-weight: 700;
             }
+            .contact { margin-top: -18px;}
+            .contact2 { margin-top: -1px;}
+            .contact3 { margin-top: -1px; float: right}
           </style>
         </head>
         <body>
@@ -1221,6 +1224,7 @@ function Home() {
                 <div class="meta">${escapeHtml(companyInfo.companyaddress || '')}</div>
                 <div class="meta">Contact: ${escapeHtml(companyInfo.companycontact || '—')}</div>
               </div>
+              <div class="meta">Date: ${escapeHtml(selectedEntry.createdDate ?? '—')}</div>
               <div class="meta">Ticket ID: ${escapeHtml(selectedEntry.id ?? '—')}</div>
             </div>
             <div class="grid">
@@ -1249,12 +1253,21 @@ function Home() {
                 <div class="weight-value">${escapeHtml(netWeight)} kg</div>
               </div>
             </div>
+            <p class="contact2">Web: appdevloper.com</p>
+            <p class="contact">mail: contact@appdevloper.com</p>
+            <p class="contact">whatsapp: +8801710666995</p>
+            <p class="contact3">Oparetor Sign</p>
           </div>
           <script>
             window.onload = () => {
               window.focus();
-              window.print();
             };
+            document.addEventListener('keydown', (e) => {
+              if ((e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === 'p') {
+                e.preventDefault();
+                window.print();
+              }
+            });
           </script>
         </body>
       </html>
@@ -1347,7 +1360,7 @@ function Home() {
                       '&:hover': { backgroundColor: '#f5f7fa' },
                       backgroundColor: entry.id === selectedEntryId ? '#e3f2fd' : 'transparent',
                       cursor: 'pointer',
-                      transition: 'background-color 0.2s'
+                      
                     }}
                   >
                     <TableCell sx={{ p: 1 }}><Typography variant="body2" sx={{ fontSize: '0.75rem' }}>{entry.id ?? '—'}</Typography></TableCell>
@@ -1481,13 +1494,13 @@ function Home() {
         flexDirection: 'column',
         overflow: 'hidden'
       }}>
-        <Fade in={true} timeout={900}>
+        <Fade in={true} >
           <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
             {/* Compact Header Section */}
             <Box sx={{ mb: { xs: 1, md: 1.5 }, flexShrink: 0 }}>
               <Grid container spacing={1} alignItems="center">
                 <Grid item xs={12} md={4}>
-                  <Reveal delay={0}>
+                  <Reveal >
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
                       <ScaleIcon sx={{ 
                         fontSize: 30, 
@@ -1551,7 +1564,7 @@ function Home() {
                         }
                       ].map((stat, index) => (
                         <Grid item xs={3} key={index}>
-                          <Reveal delay={index * 60}>
+                          <Reveal >
                             <HeaderStatCard>
                               <Box sx={{ 
                                 display: 'flex', 
@@ -1604,7 +1617,7 @@ function Home() {
                         </Grid>
                       ))}
                     </Grid>
-                    <Reveal delay={240}>
+                    <Reveal>
                       <Box sx={{ 
                         textAlign: { xs: 'left', md: 'right' },
                         px: 1.5,
@@ -1698,7 +1711,7 @@ function Home() {
                   <Grid container spacing={1}>
                         {/* Driver & Truck Info - Compact */}
                         <Grid item xs={12} md={6}>
-                          <Reveal delay={0}>
+                          <Reveal >
                           <Paper sx={{ 
                             p: 1.5, 
                             borderRadius: '10px', 
@@ -1830,7 +1843,7 @@ function Home() {
 
                         {/* Transaction Parties - Compact */}
                         <Grid item xs={12} md={6}>
-                          <Reveal delay={80}>
+                          <Reveal >
                           <Paper sx={{ 
                             p: 1.5, 
                             borderRadius: '10px', 
@@ -1960,7 +1973,7 @@ function Home() {
 
                         {/* Product Details - Compact */}
                         <Grid item xs={12} md={5}>
-                          <Reveal delay={160}>
+                          <Reveal >
                           <Paper sx={{ 
                             p: 1.5, 
                             borderRadius: '10px', 
@@ -2152,7 +2165,7 @@ function Home() {
 
                         {/* Weight Measurement - Compact */}
                         <Grid item xs={12} md={6}>
-                          <Reveal delay={240}>
+                          <Reveal >
                           <Paper sx={{ 
                             p: 1.5, 
                             borderRadius: '10px', 
@@ -2437,18 +2450,7 @@ function Home() {
                             }}>
                               {editingIndex !== null && (
                                 <>
-                                  <Chip
-                                    label="Editing"
-                                    color="warning"
-                                    icon={<EditIcon />}
-                                    size="small"
-                                    sx={{ 
-                                      fontWeight: 600,
-                                      fontSize: '0.7rem',
-                                      alignSelf: { xs: 'center', sm: 'flex-start' },
-                                      height: 24
-                                    }}
-                                  />
+                                
                                   <Button
                                     variant="outlined"
                                     size="small"

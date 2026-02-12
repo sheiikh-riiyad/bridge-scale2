@@ -88,6 +88,7 @@ function Console() {
     }
 
     const printUserName = userInfo?.username || row.username || '—';
+    const printUserContact = userInfo?.contact || '—';
 
     const printWindow = window.open('', '_blank', 'width=900,height=700');
     if (!printWindow) return;
@@ -98,21 +99,24 @@ function Console() {
           <meta charset="utf-8" />
           <title>Weight Ticket - ${escapeHtml(row.id ?? '')}</title>
           <style>
-            @page { size: 8.3in 3.9in; margin: 0.3in; }
+            @page { size: A4 portrait; margin: 0.3in; }
             * { box-sizing: border-box; }
             body { margin: 0; font-family: Arial, Helvetica, sans-serif; color: #111; }
-            .sheet { width: 8.3in; height: 3.9in; padding: 0.2in; border: 1px solid #ccc; }
+            .sheet { width: 8.27in; height: 11.69in; padding: 0.2in; border: 1px solid #ccc; }
             .header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.12in; }
             .title { font-size: 18px; font-weight: 700; }
-            .meta { font-size: 12px; color: #444; }
+            .meta { font-size: 12px; color: #000000; }
             .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.08in 0.2in; font-size: 12px; }
             .row { display: flex; gap: 0.12in; }
-            .label { min-width: 1.1in; color: #555; font-weight: 600; }
+            .label { min-width: 1.1in; color: #000000; font-weight: 600; }
             .value { font-weight: 600; color: #111; }
             .weights { margin-top: 0.15in; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.12in; font-size: 13px; }
             .weight-box { border: 1px solid #ddd; padding: 0.12in; border-radius: 6px; }
-            .weight-title { font-size: 11px; color: #666; margin-bottom: 0.04in; }
+            .weight-title { font-size: 11px; color: #000000; margin-bottom: 0.04in; }
             .weight-value { font-size: 15px; font-weight: 700; }
+            .contact { margin-top: -18px;}
+            .contact2 { margin-top: -1px;}
+            .contact3 { margin-top: -1px; float: right}
           </style>
         </head>
         <body>
@@ -123,6 +127,7 @@ function Console() {
                 <div class="meta">${escapeHtml(companyInfo.companyaddress || '')}</div>
                 <div class="meta">Contact: ${escapeHtml(companyInfo.companycontact || '—')}</div>
               </div>
+              <div class="meta">Date: ${escapeHtml(row.createdate ?? '—')}</div>
               <div class="meta">Ticket ID: ${escapeHtml(row.id ?? '—')}</div>
             </div>
             <div class="grid">
@@ -133,6 +138,7 @@ function Console() {
               <div class="row"><div class="label">Product</div><div class="value">${escapeHtml(row.productname)}</div></div>
               <div class="row"><div class="label">Spec</div><div class="value">${escapeHtml(row.specification)}</div></div>
               <div class="row"><div class="label">Created By</div><div class="value">${escapeHtml(printUserName)}</div></div>
+              <div class="row"><div class="label">User Contact</div><div class="value">${escapeHtml(printUserContact)}</div></div>
               <div class="row"><div class="label">1st Time</div><div class="value">${escapeHtml(formatDateTime(row.firstweightdate))}</div></div>
               <div class="row"><div class="label">2nd Time</div><div class="value">${escapeHtml(formatDateTime(row.secondweightdate))}</div></div>
             </div>
@@ -150,9 +156,20 @@ function Console() {
                 <div class="weight-value">${escapeHtml(row.netweight)} kg</div>
               </div>
             </div>
+            <p class="contact2">Web: appdevloper.com</p>
+            <p class="contact">mail: contact@appdevloper.com</p>
+            <p class="contact">whatsapp: +8801710666995</p>
+            <p class="contact3">Oparetor Sign</p>
           </div>
+              
           <script>
-            window.onload = () => { window.focus(); window.print(); };
+            window.onload = () => { window.focus(); };
+            document.addEventListener('keydown', (e) => {
+              if ((e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === 'p') {
+                e.preventDefault();
+                window.print();
+              }
+            });
           </script>
         </body>
       </html>`;

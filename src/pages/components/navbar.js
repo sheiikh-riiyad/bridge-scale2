@@ -29,7 +29,7 @@ import { useEffect, useState, useCallback } from 'react';
 
 
 export default function Navbar() {
-  const [weight, setWeight] = useState('0.00');
+  const [weight, setWeight] = useState('0');
   const [scaleStatus, setScaleStatus] = useState('disconnected');
   const [decimalMode, setDecimalMode] = useState(2);
   const navigate = useNavigate();
@@ -381,7 +381,7 @@ export default function Navbar() {
               color="inherit" 
               sx={{ mx: 1 }}
               startIcon={<HomeIcon />}
-              onClick={() => navigate('./')}
+              onClick={() => navigate('/')}
             >
               Home
             </Button>
