@@ -275,6 +275,22 @@ const Reveal = ({ children,  }) => {
   );
 };
 
+const pad2 = (value) => String(value).padStart(2, '0');
+const toLocalDateValue = (date = new Date()) =>
+  `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+const toLocalDateTimeValue = (date = new Date()) =>
+  `${toLocalDateValue(date)}T${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+const emptyToNull = (value) => {
+  const text = String(value ?? '').trim();
+  return text === '' ? null : text;
+};
+const dbSecondWeightToForm = (value) => {
+  if (value === null || value === undefined) return '';
+  const text = String(value).trim();
+  if (text === '' || text === '0') return '';
+  return text;
+};
+
 function Home() {
   const [formData, setFormData] = useState({
     driverName: '',
@@ -288,8 +304,8 @@ function Home() {
     firstWeight: '',
     secondWeight: '',
     netWeight: '',
-    createdDate: new Date().toISOString().split('T')[0],
-    date: new Date().toISOString().split('T')[0],
+    createdDate: toLocalDateValue(),
+    date: toLocalDateValue(),
     time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     firstWeightDateTime: '',
     secondWeightDateTime: ''
@@ -344,7 +360,7 @@ function Home() {
     packingType: row.packingtype ?? '',
     fee: row.fee !== null && row.fee !== undefined ? String(row.fee) : '',
     firstWeight: row.firstweight !== null && row.firstweight !== undefined ? String(row.firstweight) : '',
-    secondWeight: row.secondweight !== null && row.secondweight !== undefined ? String(row.secondweight) : '',
+    secondWeight: dbSecondWeightToForm(row.secondweight),
     netWeight: row.netweight !== null && row.netweight !== undefined ? String(row.netweight) : '',
     createdDate: row.createdate ?? '',
     date: '',
@@ -359,23 +375,23 @@ function Home() {
     const avg = Number.isFinite(net) && Number.isFinite(spec) && spec !== 0 ? net / spec : null;
 
     return {
-      drivername: data.driverName ?? null,
-      trucknumber: data.truckNumber ?? null,
-      sellername: data.sellerName ?? null,
-      buyername: data.buyerName ?? null,
-      productname: data.productName ?? null,
+      drivername: emptyToNull(data.driverName),
+      trucknumber: emptyToNull(data.truckNumber),
+      sellername: emptyToNull(data.sellerName),
+      buyername: emptyToNull(data.buyerName),
+      productname: emptyToNull(data.productName),
       userid: data.userId ?? null,
-      username: data.userName ?? null,
+      username: emptyToNull(data.userName),
       printed: data.printed ?? 0,
-      specification: data.specification ?? null,
-      packingtype: data.packingType ?? null,
-      fee: data.fee ?? null,
-      firstweight: data.firstWeight ?? null,
-      firstweightdate: data.firstWeightDateTime ?? null,
-      secondweight: data.secondWeight ?? null,
-      secondweightdate: data.secondWeightDateTime ?? null,
-      netweight: data.netWeight ?? null,
-      createdate: data.createdDate ?? null,
+      specification: emptyToNull(data.specification),
+      packingtype: emptyToNull(data.packingType),
+      fee: emptyToNull(data.fee),
+      firstweight: emptyToNull(data.firstWeight),
+      firstweightdate: emptyToNull(data.firstWeightDateTime),
+      secondweight: emptyToNull(data.secondWeight),
+      secondweightdate: emptyToNull(data.secondWeightDateTime),
+      netweight: emptyToNull(data.netWeight),
+      createdate: emptyToNull(data.createdDate),
       avarage: avg === null ? null : Math.round(avg)
     };
   };
@@ -678,7 +694,7 @@ function Home() {
 
     const weightValue = Math.abs(Number(raw.toFixed(2)));
     const now = new Date();
-    const dateTimeString = now.toISOString().slice(0, 16); // Format: YYYY-MM-DDTHH:mm
+    const dateTimeString = toLocalDateTimeValue(now);
 
     if (!formData.firstWeight) {
       const nextNetWeight = formData.secondWeight
@@ -729,8 +745,8 @@ function Home() {
       firstWeight: '',
       secondWeight: '',
       netWeight: '',
-      createdDate: new Date().toISOString().split('T')[0],
-      date: new Date().toISOString().split('T')[0],
+      createdDate: toLocalDateValue(),
+      date: toLocalDateValue(),
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       firstWeightDateTime: '',
       secondWeightDateTime: ''
@@ -816,8 +832,8 @@ function Home() {
 
     // Auto-set date/time if not provided
     const now = new Date();
-    const currentDateTime = now.toISOString().slice(0, 16);
-    const currentDate = now.toISOString().split('T')[0];
+    const currentDateTime = toLocalDateTimeValue(now);
+    const currentDate = toLocalDateValue(now);
     
     const updatedFormData = { ...formData };
     if (!updatedFormData.createdDate) {
@@ -992,7 +1008,7 @@ function Home() {
   const calculateStats = () => {
     const totalWeight = entries.reduce((sum, entry) => sum + (parseFloat(entry.netWeight) || 0), 0);
     const avgWeight = entries.length > 0 ? totalWeight / entries.length : 0;
-    const todayKey = new Date().toISOString().split('T')[0];
+    const todayKey = toLocalDateValue(new Date());
     const todayEntries = entries.filter(entry => (entry.createdDate || entry.date) === todayKey);
     
     return {
