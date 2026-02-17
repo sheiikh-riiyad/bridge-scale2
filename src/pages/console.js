@@ -46,6 +46,7 @@ function Console() {
     seller: '',
     buyer: '',
     product: '',
+    specification: '',
     startDate: '',
     endDate: '',
     firstWeight: '',
@@ -226,6 +227,7 @@ function Console() {
     const seller = filters.seller.trim().toLowerCase();
     const buyer = filters.buyer.trim().toLowerCase();
     const product = filters.product.trim().toLowerCase();
+    const specification = filters.specification.trim().toLowerCase();
     const firstWeight = filters.firstWeight.trim();
     const secondWeight = filters.secondWeight.trim();
     const fee = filters.fee.trim();
@@ -243,6 +245,7 @@ function Console() {
       if (seller && !toStr(row.sellername).includes(seller)) return false;
       if (buyer && !toStr(row.buyername).includes(buyer)) return false;
       if (product && !toStr(row.productname).includes(product)) return false;
+      if (specification && !toStr(row.specification).includes(specification)) return false;
 
       if (firstWeight && String(row.firstweight ?? '') !== firstWeight) return false;
       if (secondWeight && String(row.secondweight ?? '') !== secondWeight) return false;
@@ -269,6 +272,7 @@ function Console() {
       Buyer: row.buyername ?? '',
       Seller: row.sellername ?? '',
       Product: row.productname ?? '',
+      Specification: row.specification ?? '',
       Date: row.createdate ?? '',
       Fee: row.fee ?? '',
       'First Weight': row.firstweight ?? '',
@@ -432,6 +436,9 @@ function Console() {
                 <TextField label="Product" value={filters.product} onChange={(e) => setFilters({ ...filters, product: e.target.value })} fullWidth size="small" />
               </Grid>
               <Grid item xs={12} sm={6} md={2}>
+                <TextField label="Specification" value={filters.specification} onChange={(e) => setFilters({ ...filters, specification: e.target.value })} fullWidth size="small" />
+              </Grid>
+              <Grid item xs={12} sm={6} md={2}>
                 <TextField label="Start Date" type="date" InputLabelProps={{ shrink: true }} value={filters.startDate} onChange={(e) => setFilters({ ...filters, startDate: e.target.value })} fullWidth size="small" />
               </Grid>
               <Grid item xs={12} sm={6} md={2}>
@@ -448,7 +455,7 @@ function Console() {
               </Grid>
               <Grid item xs={12} sm={6} md={2}>
                 <Button variant="outlined" size="small" fullWidth onClick={() => setFilters({
-                  id: '', driver: '', truck: '', seller: '', buyer: '', product: '',
+                  id: '', driver: '', truck: '', seller: '', buyer: '', product: '', specification: '',
                   startDate: '', endDate: '', firstWeight: '', secondWeight: '', fee: ''
                 })}>
                   Clear
@@ -472,19 +479,20 @@ function Console() {
                 <TableHead>
                   <TableRow>
                     <TableCell>ID</TableCell>
+                    <TableCell>Date</TableCell>
                     <TableCell>Truck</TableCell>
                     <TableCell>Driver</TableCell>
-                    <TableCell>Buyer</TableCell>
                     <TableCell>Seller</TableCell>
+                    <TableCell>Buyer</TableCell>
                     <TableCell>Product</TableCell>
-                    <TableCell>Date</TableCell>
-                    <TableCell align="right">Fee</TableCell>
                     <TableCell align="right">First Wt</TableCell>
-                    <TableCell align="right">Second Wt</TableCell>
-                    <TableCell align="right">Net</TableCell>
-                    <TableCell align="right">Average</TableCell>
                     <TableCell>1st Time</TableCell>
+                    <TableCell align="right">Second Wt</TableCell>
                     <TableCell>2nd Time</TableCell>
+                    <TableCell align="right">Net</TableCell>
+                    <TableCell>Speci</TableCell>
+                    <TableCell align="right">Average</TableCell>
+                    <TableCell align="right">Fee</TableCell>
                     <TableCell>Created By</TableCell>
                     <TableCell align="right">Actions</TableCell>
                   </TableRow>
@@ -493,19 +501,20 @@ function Console() {
                   {filteredRows.map((row) => (
                     <TableRow key={row.id} hover>
                       <TableCell>{row.id}</TableCell>
+                      <TableCell>{row.createdate || '—'}</TableCell>
                       <TableCell>{row.trucknumber || '—'}</TableCell>
                       <TableCell>{row.drivername || '—'}</TableCell>
-                      <TableCell>{row.buyername || '—'}</TableCell>
                       <TableCell>{row.sellername || '—'}</TableCell>
+                      <TableCell>{row.buyername || '—'}</TableCell>
                       <TableCell>{row.productname || '—'}</TableCell>
-                      <TableCell>{row.createdate || '—'}</TableCell>
-                      <TableCell align="right">{row.fee ?? '—'}</TableCell>
                       <TableCell align="right">{row.firstweight ?? '—'}</TableCell>
-                      <TableCell align="right">{row.secondweight ?? '—'}</TableCell>
-                      <TableCell align="right">{row.netweight ?? '—'}</TableCell>
-                      <TableCell align="right">{row.avarage ?? '—'}</TableCell>
                       <TableCell>{formatDateTime(row.firstweightdate)}</TableCell>
+                      <TableCell align="right">{row.secondweight ?? '—'}</TableCell>
                       <TableCell>{formatDateTime(row.secondweightdate)}</TableCell>
+                      <TableCell align="right">{row.netweight ?? '—'}</TableCell>
+                      <TableCell>{row.specification || '—'}</TableCell>
+                      <TableCell align="right">{row.avarage ?? '—'}</TableCell>
+                      <TableCell align="right">{row.fee ?? '—'}</TableCell>
                       <TableCell>{row.username || '—'}</TableCell>
                       <TableCell align="right">
                         <Button size="small" variant="outlined" onClick={() => handlePrint(row)}>
