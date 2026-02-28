@@ -1254,6 +1254,7 @@ function Home() {
               <div class="row"><div class="label">User Contact</div><div class="value">${escapeHtml(printUserContact)}</div></div>
               <div class="row"><div class="label">1st Time</div><div class="value">${escapeHtml(firstWeightTime)}</div></div>
               <div class="row"><div class="label">2nd Time</div><div class="value">${escapeHtml(secondWeightTime)}</div></div>
+              <div class="row"><div class="label">2nd Time</div><div class="value">${escapeHtml(selectedEntry.avarage)}</div></div>
             </div>
             <div class="weights">
               <div class="weight-box">
