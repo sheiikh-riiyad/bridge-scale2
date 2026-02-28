@@ -182,6 +182,7 @@ function Console() {
               <div class="row"><div class="label">1st Time</div><div class="value">${escapeHtml(formatDateTime(row.firstweightdate))}</div></div>
               <div class="row"><div class="label">2nd Time</div><div class="value">${escapeHtml(formatDateTime(row.secondweightdate))}</div></div>
               <div class="row"><div class="label">Avg Weight</div><div class="value">${escapeHtml(row.avarage)}</div></div>
+              <div class="row"><div class="label">Fee's</div><div class="value">${escapeHtml(row.fee)}/-BDT</div></div>
             </div>
             <div class="weights">
               <div class="weight-box">
