@@ -290,6 +290,22 @@ const dbSecondWeightToForm = (value) => {
   if (text === '' || text === '0') return '';
   return text;
 };
+const getTicketDateKey = (ticket) => {
+  const value = ticket?.createdDate
+    ?? ticket?.createdate
+    ?? ticket?.date
+    ?? ticket?.firstWeightDateTime
+    ?? ticket?.firstweightdate;
+  if (!value) return '';
+
+  const text = String(value);
+  if (/^\d{4}-\d{2}-\d{2}/.test(text)) {
+    return text.slice(0, 10);
+  }
+
+  const parsedDate = new Date(text);
+  return Number.isNaN(parsedDate.getTime()) ? text : toLocalDateValue(parsedDate);
+};
 
 function Home() {
   const [formData, setFormData] = useState({
@@ -338,6 +354,8 @@ function Home() {
   const [liveWeight, setLiveWeight] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [nextId, setNextId] = useState('—');
+  const [printedEntries, setPrintedEntries] = useState([]);
+  const [recentTicketIdFilter, setRecentTicketIdFilter] = useState('');
 
   const role = (currentUser?.role || '').toLowerCase();
   const canDeleteTicket = role === 'admin' || role === 'super admin' || role === 'manager';
@@ -641,6 +659,25 @@ function Home() {
   useEffect(() => {
     loadNextId();
   }, [loadNextId]);
+
+  const loadPrintedEntries = useCallback(async () => {
+    if (!window?.electronAPI?.dbListPrinted) {
+      setPrintedEntries([]);
+      return;
+    }
+
+    try {
+      const rows = await window.electronAPI.dbListPrinted();
+      setPrintedEntries(Array.isArray(rows) ? rows : []);
+    } catch (error) {
+      console.error('Failed to load printed tickets for stats:', error);
+      setPrintedEntries([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadPrintedEntries();
+  }, [loadPrintedEntries]);
 
   const ensureCurrentUser = async () => {
     if (currentUser) return currentUser;
@@ -1030,20 +1067,35 @@ function Home() {
   const calculateStats = () => {
     const totalWeight = entries.reduce((sum, entry) => sum + (parseFloat(entry.netWeight) || 0), 0);
     const avgWeight = entries.length > 0 ? totalWeight / entries.length : 0;
-    const todayKey = toLocalDateValue(new Date());
-    const todayEntries = entries.filter(entry => (entry.createdDate || entry.date) === todayKey);
+    const todayKey = toLocalDateValue(liveTime);
+    const todayTicketKeys = new Set();
+
+    const addTodayTicket = (ticket, index, source) => {
+      if (getTicketDateKey(ticket) !== todayKey) return;
+      const id = ticket?.id ?? `${source}-${index}`;
+      todayTicketKeys.add(`id:${id}`);
+    };
+
+    entries.forEach((entry, index) => addTodayTicket(entry, index, 'pending'));
+    printedEntries.forEach((entry, index) => addTodayTicket(entry, index, 'printed'));
     
     return {
       totalWeight: totalWeight.toFixed(0) + ' kg',
       avgWeight: avgWeight.toFixed(0),
-      totalEntries: entries.length,
-      todayEntries: todayEntries.length
+      pendingEntries: entries.length,
+      todayEntries: todayTicketKeys.size
     };
   };
 
   const stats = calculateStats();
 
-  const visibleEntries = entries;
+  const recentTicketIdQuery = recentTicketIdFilter.trim().toLowerCase();
+  const visibleEntries = entries
+    .map((entry, index) => ({ ...entry, originalIndex: index }))
+    .filter((entry) => {
+      if (!recentTicketIdQuery) return true;
+      return String(entry.id ?? '').toLowerCase().includes(recentTicketIdQuery);
+    });
 
   const toggleDrawer = (open) => (event) => {
     if (event.type === 'keydown' && (event.key === 'Tab' || event.key === 'Shift')) {
@@ -1162,6 +1214,8 @@ function Home() {
         console.error('Failed to reload unprinted tickets:', error);
       }
     }
+
+    await loadPrintedEntries();
 
     setSelectedEntryId(null);
 
@@ -1355,7 +1409,7 @@ function Home() {
               Recent Tickets
             </Typography>
             <Typography variant="caption" sx={{ color: '#ffe0b2', fontSize: '0.7rem' }}>
-              {visibleEntries.length} records • {stats.totalWeight}
+              {visibleEntries.length} of {entries.length} records • {stats.totalWeight}
             </Typography>
           </Box>
         </Box>
@@ -1368,11 +1422,44 @@ function Home() {
       </Box>
 
       <Box sx={{ flex: 1, overflow: 'auto', p: 1.5 }}>
-        {visibleEntries.length === 0 ? (
+        {entries.length > 0 && (
+          <TextField
+            fullWidth
+            size="small"
+            label="Filter by ID"
+            value={recentTicketIdFilter}
+            onChange={(event) => setRecentTicketIdFilter(event.target.value)}
+            sx={{
+              mb: 1.5,
+              '& .MuiOutlinedInput-root': {
+                borderRadius: '8px',
+                backgroundColor: '#ffffff'
+              }
+            }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748b' }}>
+                    ID
+                  </Typography>
+                </InputAdornment>
+              )
+            }}
+          />
+        )}
+
+        {entries.length === 0 ? (
           <Box sx={{ textAlign: 'center', py: 4 }}>
             <ScaleIcon sx={{ fontSize: 40, color: '#e0e0e0', mb: 1 }} />
             <Typography color="text.secondary" variant="body2">
               No weight tickets yet
+            </Typography>
+          </Box>
+        ) : visibleEntries.length === 0 ? (
+          <Box sx={{ textAlign: 'center', py: 4 }}>
+            <ScaleIcon sx={{ fontSize: 40, color: '#e0e0e0', mb: 1 }} />
+            <Typography color="text.secondary" variant="body2">
+              No ticket found for this ID
             </Typography>
           </Box>
         ) : (
@@ -1392,7 +1479,7 @@ function Home() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {visibleEntries.slice(0, 8).map((entry, index) => (
+                {visibleEntries.map((entry) => (
                   <TableRow 
                     key={entry.id}
                     hover
@@ -1464,7 +1551,7 @@ function Home() {
                           color="primary"
                           onClick={(event) => {
                             event.stopPropagation();
-                            handleEdit(index);
+                            handleEdit(entry.originalIndex);
                             setDrawerOpen(false);
                           }}
                           sx={{ mr: 0.5, p: 0.5 }}
@@ -1478,7 +1565,7 @@ function Home() {
                           color="error"
                           onClick={(event) => {
                             event.stopPropagation();
-                            handleDelete(index);
+                            handleDelete(entry.originalIndex);
                             setDrawerOpen(false);
                           }}
                           sx={{ p: 0.5 }}
@@ -1578,8 +1665,8 @@ function Home() {
                     <Grid container spacing={2} sx={{ flex: 1 }}>
                       {[
                         { 
-                          label: 'Total', 
-                          value: stats.totalEntries, 
+                          label: 'Pending', 
+                          value: stats.pendingEntries, 
                           icon: <DashboardIcon sx={{ fontSize: 14, color: '#2196f3' }} />, 
                           color: '#2196f3',
                           

@@ -22,6 +22,27 @@ import {
   DialogActions
 } from '@mui/material';
 
+const toDateKey = (value) => {
+  if (!value) return '';
+  const text = String(value).trim();
+  const isoMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+
+  const parsedDate = new Date(text);
+  if (Number.isNaN(parsedDate.getTime())) return '';
+
+  const year = parsedDate.getFullYear();
+  const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
+  const day = String(parsedDate.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getRowDateKey = (row) => (
+  toDateKey(row.createdate)
+  || toDateKey(row.firstweightdate)
+  || toDateKey(row.secondweightdate)
+);
+
 function Console() {
   const [rows, setRows] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
@@ -237,11 +258,8 @@ function Console() {
     const secondWeight = filters.secondWeight.trim();
     const fee = filters.fee.trim();
 
-    const start = filters.startDate ? new Date(filters.startDate) : null;
-    const end = filters.endDate ? new Date(filters.endDate) : null;
-    if (end) {
-      end.setHours(23, 59, 59, 999);
-    }
+    const startDate = filters.startDate;
+    const endDate = filters.endDate;
 
     return rows.filter((row) => {
       if (id && String(row.id ?? '') !== id) return false;
@@ -257,11 +275,11 @@ function Console() {
       if (secondWeight && String(row.secondweight ?? '') !== secondWeight) return false;
       if (fee && String(row.fee ?? '') !== fee) return false;
 
-      if (start || end) {
-        const dt = row.firstweightdate ? new Date(row.firstweightdate) : null;
-        if (!dt || Number.isNaN(dt.getTime())) return false;
-        if (start && dt < start) return false;
-        if (end && dt > end) return false;
+      if (startDate || endDate) {
+        const rowDate = getRowDateKey(row);
+        if (!rowDate) return false;
+        if (startDate && rowDate < startDate) return false;
+        if (endDate && rowDate > endDate) return false;
       }
 
       return true;
@@ -413,7 +431,7 @@ function Console() {
   };
 
   return (
-    <Container maxWidth={false} sx={{ py: 3, maxWidth: '100%' }}>
+    <Container className="console-page" maxWidth={false} sx={{ py: 3, maxWidth: '100%' }}>
       <Card sx={{ borderRadius: 2 }}>
         <CardContent>
           <Typography variant="h6" fontWeight={700} sx={{ mb: 2 }}>
