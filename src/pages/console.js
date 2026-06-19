@@ -33,6 +33,7 @@ function Console() {
     sellername: '',
     buyername: '',
     productname: '',
+    packingtype: '',
     specification: '',
     fee: '',
     firstweight: '',
@@ -46,6 +47,7 @@ function Console() {
     seller: '',
     buyer: '',
     product: '',
+    packingType: '',
     specification: '',
     startDate: '',
     endDate: '',
@@ -229,6 +231,7 @@ function Console() {
     const seller = filters.seller.trim().toLowerCase();
     const buyer = filters.buyer.trim().toLowerCase();
     const product = filters.product.trim().toLowerCase();
+    const packingType = filters.packingType.trim().toLowerCase();
     const specification = filters.specification.trim().toLowerCase();
     const firstWeight = filters.firstWeight.trim();
     const secondWeight = filters.secondWeight.trim();
@@ -247,6 +250,7 @@ function Console() {
       if (seller && !toStr(row.sellername).includes(seller)) return false;
       if (buyer && !toStr(row.buyername).includes(buyer)) return false;
       if (product && !toStr(row.productname).includes(product)) return false;
+      if (packingType && !toStr(row.packingtype).includes(packingType)) return false;
       if (specification && !toStr(row.specification).includes(specification)) return false;
 
       if (firstWeight && String(row.firstweight ?? '') !== firstWeight) return false;
@@ -274,6 +278,7 @@ function Console() {
       Buyer: row.buyername ?? '',
       Seller: row.sellername ?? '',
       Product: row.productname ?? '',
+      'Packing Type': row.packingtype ?? '',
       Specification: row.specification ?? '',
       Date: row.createdate ?? '',
       Fee: row.fee ?? '',
@@ -331,6 +336,7 @@ function Console() {
       sellername: String(row.sellername ?? ''),
       buyername: String(row.buyername ?? ''),
       productname: String(row.productname ?? ''),
+      packingtype: String(row.packingtype ?? ''),
       specification: String(row.specification ?? ''),
       fee: String(row.fee ?? ''),
       firstweight: String(row.firstweight ?? ''),
@@ -376,7 +382,7 @@ function Console() {
       username: row.username ?? null,
       printed: 1,
       specification: toNullable(editForm.specification),
-      packingtype: row.packingtype ?? null,
+      packingtype: toNullable(editForm.packingtype),
       fee: toNullable(editForm.fee),
       firstweight: toNullable(editForm.firstweight),
       firstweightdate: row.firstweightdate ?? null,
@@ -438,6 +444,9 @@ function Console() {
                 <TextField label="Product" value={filters.product} onChange={(e) => setFilters({ ...filters, product: e.target.value })} fullWidth size="small" />
               </Grid>
               <Grid item xs={12} sm={6} md={2}>
+                <TextField label="Packing Type" value={filters.packingType} onChange={(e) => setFilters({ ...filters, packingType: e.target.value })} fullWidth size="small" />
+              </Grid>
+              <Grid item xs={12} sm={6} md={2}>
                 <TextField label="Specification" value={filters.specification} onChange={(e) => setFilters({ ...filters, specification: e.target.value })} fullWidth size="small" />
               </Grid>
               <Grid item xs={12} sm={6} md={2}>
@@ -457,7 +466,7 @@ function Console() {
               </Grid>
               <Grid item xs={12} sm={6} md={2}>
                 <Button variant="outlined" size="small" fullWidth onClick={() => setFilters({
-                  id: '', driver: '', truck: '', seller: '', buyer: '', product: '', specification: '',
+                  id: '', driver: '', truck: '', seller: '', buyer: '', product: '', packingType: '', specification: '',
                   startDate: '', endDate: '', firstWeight: '', secondWeight: '', fee: ''
                 })}>
                   Clear
@@ -487,6 +496,7 @@ function Console() {
                     <TableCell>Seller</TableCell>
                     <TableCell>Buyer</TableCell>
                     <TableCell>Product</TableCell>
+                    <TableCell>Packing Type</TableCell>
                     <TableCell align="right">First Wt</TableCell>
                     <TableCell>1st Time</TableCell>
                     <TableCell align="right">Second Wt</TableCell>
@@ -509,6 +519,7 @@ function Console() {
                       <TableCell>{row.sellername || '—'}</TableCell>
                       <TableCell>{row.buyername || '—'}</TableCell>
                       <TableCell>{row.productname || '—'}</TableCell>
+                      <TableCell>{row.packingtype || '—'}</TableCell>
                       <TableCell align="right">{row.firstweight ?? '—'}</TableCell>
                       <TableCell>{formatDateTime(row.firstweightdate)}</TableCell>
                       <TableCell align="right">{row.secondweight ?? '—'}</TableCell>
@@ -571,6 +582,9 @@ function Console() {
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField fullWidth size="small" label="Product Name" name="productname" value={editForm.productname} onChange={handleEditFieldChange} />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField fullWidth size="small" label="Packing Type" name="packingtype" value={editForm.packingtype} onChange={handleEditFieldChange} />
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField fullWidth size="small" label="Specification" name="specification" value={editForm.specification} onChange={handleEditFieldChange} />

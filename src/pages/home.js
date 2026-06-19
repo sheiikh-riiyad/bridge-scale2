@@ -346,6 +346,15 @@ function Home() {
   const audioMapRef = useRef(null);
   const lastSavedRef = useRef(null);
 
+  function calculateAverageWeight(data) {
+    const net = parseFloat(data?.netWeight ?? data?.netweight);
+    const spec = parseFloat(data?.specification);
+    if (!Number.isFinite(net) || !Number.isFinite(spec) || spec === 0) {
+      return null;
+    }
+    return Math.round(net / spec);
+  }
+
   const mapDbRowToEntry = (row) => ({
     id: row.id,
     driverName: row.drivername ?? '',
@@ -362,6 +371,7 @@ function Home() {
     firstWeight: row.firstweight !== null && row.firstweight !== undefined ? String(row.firstweight) : '',
     secondWeight: dbSecondWeightToForm(row.secondweight),
     netWeight: row.netweight !== null && row.netweight !== undefined ? String(row.netweight) : '',
+    avarage: row.avarage !== null && row.avarage !== undefined ? String(row.avarage) : '',
     createdDate: row.createdate ?? '',
     date: '',
     time: '',
@@ -370,9 +380,7 @@ function Home() {
   });
 
   const toDbPayload = (data) => {
-    const net = parseFloat(data.netWeight);
-    const spec = parseFloat(data.specification);
-    const avg = Number.isFinite(net) && Number.isFinite(spec) && spec !== 0 ? net / spec : null;
+    const avg = calculateAverageWeight(data);
 
     return {
       drivername: emptyToNull(data.driverName),
@@ -392,8 +400,18 @@ function Home() {
       secondweightdate: emptyToNull(data.secondWeightDateTime),
       netweight: emptyToNull(data.netWeight),
       createdate: emptyToNull(data.createdDate),
-      avarage: avg === null ? null : Math.round(avg)
+      avarage: avg
     };
+  };
+
+  const getPrintableAverageWeight = (data) => {
+    const savedAverage = data?.avarage ?? data?.averageWeight ?? data?.average;
+    if (savedAverage !== null && savedAverage !== undefined && String(savedAverage).trim() !== '') {
+      return String(savedAverage);
+    }
+
+    const avg = calculateAverageWeight(data);
+    return avg === null ? '—' : String(avg);
   };
 
 
@@ -867,6 +885,10 @@ function Home() {
     };
 
     const dbPayload = toDbPayload(updatedFormDataWithUser);
+    const entryData = {
+      ...updatedFormDataWithUser,
+      avarage: dbPayload.avarage === null || dbPayload.avarage === undefined ? '' : String(dbPayload.avarage)
+    };
 
     if (editingIndex === null) {
       const currentSnapshot = buildComparePayload(updatedFormDataWithUser);
@@ -902,7 +924,7 @@ function Home() {
         }
       }
 
-      updatedEntries[editingIndex] = { ...updatedFormDataWithUser, id: nextId };
+      updatedEntries[editingIndex] = { ...entryData, id: nextId };
       setEntries(updatedEntries);
       setSnackbar({
         open: true,
@@ -933,7 +955,7 @@ function Home() {
         }
       }
 
-      setEntries(prev => [...prev, { ...updatedFormDataWithUser, id: newId }]);
+      setEntries(prev => [...prev, { ...entryData, id: newId }]);
       setSelectedEntryId(newId);
       lastSavedRef.current = buildComparePayload(updatedFormDataWithUser);
       setSnackbar({
@@ -1090,6 +1112,7 @@ function Home() {
     const first = parseFloat(selectedEntry.firstWeight);
     const second = parseFloat(selectedEntry.secondWeight);
     const netWeight = selectedEntry.netWeight || (Number.isFinite(first) && Number.isFinite(second) ? Math.abs(first - second).toFixed(2) : '');
+    const printAverageWeight = getPrintableAverageWeight({ ...selectedEntry, netWeight });
 
     let companyInfo = { companyname: '', companyaddress: '', companycontact: '' };
     try {
@@ -1254,7 +1277,7 @@ function Home() {
               <div class="row"><div class="label">User Contact</div><div class="value">${escapeHtml(printUserContact)}</div></div>
               <div class="row"><div class="label">1st Time</div><div class="value">${escapeHtml(firstWeightTime)}</div></div>
               <div class="row"><div class="label">2nd Time</div><div class="value">${escapeHtml(secondWeightTime)}</div></div>
-              <div class="row"><div class="label">Avg Weight</div><div class="value">${escapeHtml(selectedEntry.avarage)}</div></div>
+              <div class="row"><div class="label">Avg Weight</div><div class="value">${escapeHtml(printAverageWeight)}</div></div>
               <div class="row"><div class="label">Fee's</div><div class="value">${escapeHtml(selectedEntry.fee)}/-BDT</div></div>
             </div>
             <div class="weights">
